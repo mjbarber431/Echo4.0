@@ -128,6 +128,25 @@ describe('legacy mapping', () => {
     expect(uncoded).toEqual(['adjustment concerns'])
   })
 
+  it('imports fields the old app saved as arrays or other non-strings', () => {
+    const [c] = sample()
+    const odd = c as unknown as Record<string, any>
+    odd.diagnosis = ['F41.1 Generalized anxiety disorder', 'F33.1 Major depressive disorder']
+    odd.treatmentPlan.presenting_problem = null
+    odd.treatmentPlan.additional_notes = ['Prefers mornings']
+    odd.treatmentPlan.interventions = ['Cognitive restructuring', 'Values work']
+    odd.treatmentPlan.goals[0].objectives = ['Objective 1a: Practice worry time daily', 'Objective 1b: Rate anxiety weekly']
+    odd.notes[0].sections[0].content = ['Riley reports worry.', 'Sleep is poor.']
+    odd.notes[0].transcription = undefined
+    const { clients, notes } = mergeLegacy(empty(), [c], settings, uid)
+    expect(clients[0].diagnoses.map((d) => d.code)).toEqual(['F41.1', 'F33.1'])
+    expect(clients[0].context).toBe('Additional notes: Prefers mornings')
+    expect(clients[0].plan?.goals[0].objectives.map((o) => o.text)).toEqual(['Practice worry time daily', 'Rate anxiety weekly'])
+    expect(clients[0].plan?.goals[0].interventions).toBe('Cognitive restructuring\nValues work')
+    expect(notes[0].sections[0].body).toBe('Riley reports worry.\nSleep is poor.')
+    expect(notes[0].dictation).toBe('')
+  })
+
   it('normalizes dates of service to local YYYY-MM-DD', () => {
     expect(legacyDate('2026-03-04', '')).toBe('2026-03-04')
     expect(legacyDate('2026-09-01T23:30:00.000Z', '')).toBe(todayISO(new Date('2026-09-01T23:30:00.000Z')))

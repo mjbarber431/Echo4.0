@@ -86,14 +86,26 @@ const GOAL_STATUS: Record<LegacyGoal['status'], GoalStatus> = {
   discontinued: 'discontinued'
 }
 
+/**
+ * The old app saved Gemini's JSON without checking it, so a field typed as a
+ * string can hold an array, an object, a number or null. Read any of them as text.
+ */
+export function asText(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value == null) return ''
+  if (Array.isArray(value)) return value.map(asText).filter(Boolean).join('\n')
+  if (typeof value === 'object') return Object.values(value).map(asText).filter(Boolean).join('\n')
+  return String(value)
+}
+
 const ICD10 = /\b([A-TV-Z]\d{2}(?:\.[0-9A-Z]{1,4})?)\b/g
 
 /** ICD-10 codes found in free-text diagnoses, plus any text that carried no code. */
-export function parseDiagnoses(...texts: (string | undefined)[]): { diagnoses: Diagnosis[]; uncoded: string[] } {
+export function parseDiagnoses(...texts: unknown[]): { diagnoses: Diagnosis[]; uncoded: string[] } {
   const diagnoses: Diagnosis[] = []
   const uncoded: string[] = []
   for (const text of texts) {
-    for (const segment of (text ?? '').split(/[;\n]+/).map((s) => s.trim()).filter(Boolean)) {
+    for (const segment of asText(text).split(/[;\n]+/).map((s) => s.trim()).filter(Boolean)) {
       const codes = [...segment.matchAll(ICD10)].map((m) => m[1])
       if (codes.length === 0) {
         if (!uncoded.includes(segment)) uncoded.push(segment)
@@ -119,8 +131,8 @@ export function legacyDate(raw: string | undefined, fallback: string): string {
   return todayISO()
 }
 
-function splitObjectives(text: string, status: GoalStatus, uid: () => string): Objective[] {
-  return (text ?? '')
+function splitObjectives(text: unknown, status: GoalStatus, uid: () => string): Objective[] {
+  return asText(text)
     .split(/\n+/)
     .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)]|[a-z][.)]|objective\s*[\d.a-z]*\s*[:.)-])\s*/i, '').trim())
     .filter(Boolean)
@@ -134,10 +146,10 @@ export function mapPlan(plan: LegacyPlan, settings: Settings, uid: () => string)
     return {
       id: g.id,
       problem: '',
-      goal: g.goal ?? '',
+      goal: asText(g.goal),
       objectives: splitObjectives(g.objectives, status, uid),
       // The old plan listed interventions once for the whole plan; each goal carries them here.
-      interventions: plan.interventions ?? '',
+      interventions: asText(plan.interventions),
       status,
       progress: '',
       targetDate: g.targetDate ? legacyDate(g.targetDate, '') : null,
@@ -147,8 +159,8 @@ export function mapPlan(plan: LegacyPlan, settings: Settings, uid: () => string)
   })
   return {
     goals,
-    frequency: plan.frequency ?? '',
-    modalities: plan.theoretical_orientation ?? '',
+    frequency: asText(plan.frequency),
+    modalities: asText(plan.theoretical_orientation),
     dischargeCriteria: '',
     reviewDate: nextReviewDate(lastReviewed, settings.planReviewDays),
     lastReviewed,
@@ -158,11 +170,12 @@ export function mapPlan(plan: LegacyPlan, settings: Settings, uid: () => string)
 
 /** Clinical background only. Context is sent to the AI, so contact details and DOB never go here. */
 function seedContext(c: LegacyClient, uncoded: string[]): string {
-  const p = c.treatmentPlan
+  const presenting = asText(c.treatmentPlan?.presenting_problem).trim()
+  const additional = asText(c.treatmentPlan?.additional_notes).trim()
   return [
-    p?.presenting_problem?.trim() && `Presenting problem: ${p.presenting_problem.trim()}`,
+    presenting && `Presenting problem: ${presenting}`,
     uncoded.length > 0 && `Diagnostic impressions: ${uncoded.join('; ')}`,
-    p?.additional_notes?.trim() && `Additional notes: ${p.additional_notes.trim()}`
+    additional && `Additional notes: ${additional}`
   ]
     .filter(Boolean)
     .join('\n\n')
@@ -205,9 +218,9 @@ export function mapClient(c: LegacyClient, settings: Settings, uid: () => string
  */
 export function mapNote(n: LegacyNote, client: Client, settings: Settings): Note {
   const type = n.type === 'intake' ? 'intake' : 'progress'
-  const sections: NoteSection[] = (n.sections ?? []).map((s) => ({ heading: s.title || s.key, body: cleanBody(s.content ?? '') }))
+  const sections: NoteSection[] = (n.sections ?? []).map((s) => ({ heading: asText(s.title) || asText(s.key), body: cleanBody(asText(s.content)) }))
   const done = n.updatedAt || n.createdAt
-  const risk = scanRisk([n.transcription, ...sections.map((s) => s.body)].join('\n'))
+  const risk = scanRisk([asText(n.transcription), ...sections.map((s) => s.body)].join('\n'))
   return {
     id: n.id,
     clientId: client.id,
@@ -222,7 +235,7 @@ export function mapNote(n: LegacyNote, client: Client, settings: Settings): Note
       participants: 'Client'
     },
     attest: { noSafetyConcerns: risk.length === 0, mseUnremarkable: true },
-    dictation: n.transcription ?? '',
+    dictation: asText(n.transcription),
     sections,
     reviewItems: [],
     suggestions: null,
