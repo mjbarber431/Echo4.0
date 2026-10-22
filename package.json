@@ -1,7 +1,7 @@
 {
   "name": "echo-notes",
   "productName": "Echo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Dictate therapy sessions; get audit-ready progress notes ready to paste into your EHR.",
   "main": "out/main/index.js",
   "private": true,
