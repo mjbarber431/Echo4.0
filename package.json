@@ -14,7 +14,8 @@
     "test": "vitest run",
     "package": "npm run build:transcriber && electron-vite build && electron-builder --mac --dir",
     "dist": "npm run build:transcriber && electron-vite build && electron-builder --mac",
-    "release": "npm run build:transcriber && electron-vite build && electron-builder --mac --publish always",
+    "release": "npm version patch -m \"Release %s\" && npm run publish:mac && git push --follow-tags",
+    "publish:mac": "npm run build:transcriber && electron-vite build && GH_TOKEN=$(gh auth token) electron-builder --mac --publish always",
     "postinstall": "install-electron"
   },
   "build": {
