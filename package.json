@@ -14,8 +14,8 @@
     "test": "vitest run",
     "package": "npm run build:transcriber && electron-vite build && electron-builder --mac --dir",
     "dist": "npm run build:transcriber && electron-vite build && electron-builder --mac",
-    "release": "npm version patch -m \"Release %s\" && npm run publish:mac && git push --follow-tags",
-    "publish:mac": "npm run build:transcriber && electron-vite build && GH_TOKEN=$(gh auth token) electron-builder --mac --publish always",
+    "release": "npm version patch -m \"Release %s\" && git push --follow-tags && npm run publish:mac",
+    "publish:mac": "npm run build:transcriber && electron-vite build && (gh release view v$npm_package_version >/dev/null 2>&1 || gh release create v$npm_package_version --draft --verify-tag --title $npm_package_version --notes '') && GH_TOKEN=$(gh auth token) electron-builder --mac --publish always && gh release edit v$npm_package_version --draft=false --latest",
     "postinstall": "install-electron"
   },
   "build": {
@@ -38,7 +38,7 @@
       "provider": "github",
       "owner": "mjbarber431",
       "repo": "Echo4.0",
-      "releaseType": "release"
+      "releaseType": "draft"
     },
     "mac": {
       "category": "public.app-category.medical",
