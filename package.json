@@ -1,0 +1,81 @@
+{
+  "name": "echo-notes",
+  "productName": "Echo",
+  "version": "0.1.0",
+  "description": "Dictate therapy sessions; get audit-ready progress notes ready to paste into your EHR.",
+  "main": "out/main/index.js",
+  "private": true,
+  "scripts": {
+    "dev": "npm run build:transcriber && electron-vite dev",
+    "dev:mock": "ECHO_MOCK_AI=1 electron-vite dev",
+    "build": "electron-vite build",
+    "build:transcriber": "swift build -c release --arch arm64 --package-path native/transcriber && mkdir -p native/transcriber/dist && cp \"$(swift build -c release --arch arm64 --package-path native/transcriber --show-bin-path)/EchoTranscriber\" native/transcriber/dist/",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "package": "npm run build:transcriber && electron-vite build && electron-builder --mac --dir",
+    "dist": "npm run build:transcriber && electron-vite build && electron-builder --mac",
+    "release": "npm run build:transcriber && electron-vite build && electron-builder --mac --publish always",
+    "postinstall": "install-electron"
+  },
+  "build": {
+    "appId": "care.person2person.echo",
+    "productName": "Echo",
+    "files": [
+      "out/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "native/transcriber/dist/EchoTranscriber",
+        "to": "EchoTranscriber"
+      }
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "mjbarber431",
+      "repo": "Echo4.0",
+      "releaseType": "release"
+    },
+    "mac": {
+      "category": "public.app-category.medical",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Echo uses the microphone so you can dictate session summaries.",
+        "NSLocalNetworkUsageDescription": "Echo receives the dictations you record on your iPhone over your local network.",
+        "NSBonjourServices": [
+          "_echo-memo._tcp"
+        ]
+      }
+    }
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.132.1",
+    "electron-updater": "6.8.9",
+    "lucide-react": "1.59.0",
+    "qrcode": "1.5.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "@types/qrcode": "1.5.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "electron": "44.9.0",
+    "electron-builder": "26.15.3",
+    "electron-vite": "6.0.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.4",
+    "vitest": "5.0.5"
+  }
+}

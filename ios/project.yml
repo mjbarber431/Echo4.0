@@ -1,0 +1,101 @@
+# Echo for iPhone: records a session summary, transcribes it on the phone and
+# hands the text to Echo on your Mac over the local network.
+# Generate the Xcode project with `xcodegen` (brew install xcodegen), then open EchoMobile.xcodeproj.
+name: EchoMobile
+options:
+  bundleIdPrefix: care.person2person
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    DEVELOPMENT_TEAM: 84WHKRYBX3
+packages:
+  FluidAudio:
+    # Pinned to the same release as the Mac's transcriber: it runs on clinical audio.
+    url: https://github.com/FluidInference/FluidAudio.git
+    exactVersion: 0.17.7
+targets:
+  EchoMobile:
+    type: application
+    platform: iOS
+    sources:
+      - EchoMobile
+      - Shared
+    dependencies:
+      - package: FluidAudio
+      - target: EchoActivity
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: care.person2person.echo.mobile
+        PRODUCT_NAME: Echo
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_PREVIEWS: YES
+    info:
+      path: EchoMobile/Info.plist
+      properties:
+        CFBundleDisplayName: Echo
+        UILaunchScreen:
+          UIColorName: AccentColor
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIBackgroundModes: [audio]
+        NSSupportsLiveActivities: true
+        NSMicrophoneUsageDescription: Echo records the session summaries you dictate. The recording is transcribed on this iPhone and never uploaded.
+        NSCameraUsageDescription: Echo uses the camera to scan the pairing code shown by Echo on your Mac.
+        NSFaceIDUsageDescription: Echo uses Face ID so only you can open your recordings.
+        NSLocalNetworkUsageDescription: Echo sends your transcribed recordings to Echo on your Mac over your Wi-Fi network.
+        NSBonjourServices: [_echo-memo._tcp]
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        ITSAppUsesNonExemptEncryption: false
+  # The lock screen and Dynamic Island while recording.
+  EchoActivity:
+    type: app-extension
+    platform: iOS
+    sources:
+      - EchoActivity
+      - Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: care.person2person.echo.mobile.activity
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
+    info:
+      path: EchoActivity/Info.plist
+      properties:
+        CFBundleDisplayName: Echo
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+  EchoMobileUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - EchoMobileUITests
+    dependencies:
+      - target: EchoMobile
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: care.person2person.echo.mobile.uitests
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: EchoMobile
+schemes:
+  EchoMobile:
+    build:
+      targets:
+        EchoMobile: all
+    test:
+      targets:
+        - EchoMobileUITests

@@ -1,0 +1,17 @@
+node_modules/
+out/
+release/
+.DS_Store
+native/transcriber/.build/
+native/transcriber/dist/
+
+# Private documents and images; never commit
+*.pdf
+Grace Signature.png
+Matthew Signature.png
+Green logo.png
+
+# Xcode per-user state
+ios/**/xcuserdata/
+*.xcuserstate
+DerivedData/
