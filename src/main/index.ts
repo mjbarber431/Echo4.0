@@ -13,6 +13,7 @@ import { readLegacyBackup } from './legacyBackup'
 import { Vault } from './vault'
 import { LinkServer, macName, newPairing, pairingUrl, type LinkRequest } from './link'
 import * as ai from './ai'
+import * as local from './local'
 import { commitLive, sendLiveAudio, startLive, stopLive } from './live'
 import { onTranscriberStatus, prepareTranscriber, stopTranscriber, transcribe, transcriberStatus } from './transcriber'
 
@@ -202,6 +203,8 @@ function registerIpc(): void {
     const model = vault.data.settings.transcribeModel
     vault.data.settings = { ...vault.data.settings, ...patch }
     vault.save()
+    if (!vault.data.settings.localModel) local.stopLocal()
+    else if (patch.localModel) local.ensureModel().catch(() => {})
     if (!MOCK && vault.data.settings.transcribeModel !== model) prepareTranscriber(vault.data.settings.transcribeModel).catch(() => {})
     return publicSettings()
   })
@@ -296,6 +299,7 @@ function registerIpc(): void {
     const client = vault.data.clients.find((c) => c.id === note.clientId)
     if (!client) throw new Error('Client not found.')
     if (MOCK) return ai.mockGenerateNote(note, client)
+    if (vault.data.settings.localModel && !model) return local.generateNote(vault.data.settings, note, client, priorNotesFor(note))
     return ai.generateNote(requireKey(), withModel(model), note, client, priorNotesFor(note))
   })
 
@@ -305,6 +309,7 @@ function registerIpc(): void {
     const client = vault.data.clients.find((c) => c.id === note.clientId)
     if (!client) throw new Error('Client not found.')
     if (MOCK) return ai.mockAmendNote(note, client, followUp)
+    if (vault.data.settings.localModel && !model) return local.amendNote(vault.data.settings, note, client, priorNotesFor(note), followUp, flagged)
     return ai.amendNote(requireKey(), withModel(model), note, client, priorNotesFor(note), followUp, flagged)
   })
 
@@ -517,6 +522,7 @@ app.on('before-quit', () => {
   link?.stop()
   stopLive()
   stopTranscriber()
+  local.stopLocal()
   vault?.flush()
 })
 app.on('window-all-closed', () => {

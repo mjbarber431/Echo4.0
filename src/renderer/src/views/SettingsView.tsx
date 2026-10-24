@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Download, History, KeyRound, Loader2, PlugZap, ShieldCheck, Upload } from 'lucide-react'
-import { TRANSCRIBE_MODELS, WRITING_MODELS, type NoteFormat, type ReasoningEffort, type Settings, type TranscriberStatus } from '@shared/types'
+import { LOCAL_MODEL, TRANSCRIBE_MODELS, WRITING_MODELS, type NoteFormat, type ReasoningEffort, type Settings, type TranscriberStatus } from '@shared/types'
 import { useStore } from '../store'
 import { BackupModal } from '../components/BackupModal'
 import { LegacyImportModal } from '../components/LegacyImportModal'
@@ -195,6 +195,24 @@ export function SettingsView() {
             </select>
           </Field>
           {speech && <p className={speech.state === 'error' ? 'error small' : 'fine-print'}>{speechStatus(speech)}</p>}
+        </section>
+
+        <section className="settings-group">
+          <h2>Experimental: local model</h2>
+          <Toggle
+            checked={!!settings.localModel}
+            onChange={(localModel) => set({ localModel })}
+            label={`Write notes with ${LOCAL_MODEL.label}`}
+            hint="Notes and follow-ups are written on this Mac and never leave it. The first note after a while takes longer while the model loads. Plans, context rebuilds and live feedback still use Claude, and choosing a stronger Claude model for one note writes that note with Claude. Needs mlx-lm. Switching this on downloads the model (about 6 GB) in the background the first time."
+          />
+          {settings.localModel && (
+            <Toggle
+              checked={!!settings.localThinking}
+              onChange={(localThinking) => set({ localThinking })}
+              label="Let it think first"
+              hint="Often more careful, but slower."
+            />
+          )}
         </section>
 
         <IphoneSettings />

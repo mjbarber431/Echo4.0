@@ -157,6 +157,10 @@ export interface Settings {
   lockEnabled: boolean
   lockMinutes: number
   onboarded: boolean
+  /** Experimental: write notes and amendments with LOCAL_MODEL on this Mac instead of Claude. */
+  localModel?: boolean
+  /** Experimental: let the local model think before it writes. Slower. */
+  localThinking?: boolean
 }
 
 /** Settings as the renderer sees them: the API key never leaves the main process. */
@@ -189,6 +193,9 @@ export const WRITING_MODELS: { id: string; label: string; hint: string }[] = [
   { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5', hint: 'More careful, about 20× Haiku’s cost' },
   { id: 'claude-opus-5-5', label: 'Opus 5.5', hint: 'Most careful, about 40× Haiku’s cost' }
 ]
+
+/** Experimental local writing model, run through mlx-lm (see src/main/local.ts). */
+export const LOCAL_MODEL = { repo: 'mlx-community/Qwen3.5-9B-4bit', label: 'Qwen3.5 9B (4-bit, local)' }
 
 export function modelLabel(id: string): string {
   return WRITING_MODELS.find((m) => m.id === id)?.label ?? id
