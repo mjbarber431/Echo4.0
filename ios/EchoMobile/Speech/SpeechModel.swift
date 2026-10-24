@@ -84,9 +84,20 @@ actor SpeechEngine {
 
     func transcribe(_ url: URL) async throws -> String {
         guard let manager else { throw SpeechError.notReady }
-        // A fresh decoder state per recording. Long recordings are read from disk in chunks, not loaded whole.
+        // A fresh decoder state per recording. Anything over 30 seconds is converted into a scratch
+        // file in tmp/ and read in chunks, not loaded whole. iOS can clear tmp/ (the folder itself
+        // included), so make sure it's there first.
+        try? FileManager.default.createDirectory(at: FileManager.default.temporaryDirectory, withIntermediateDirectories: true)
         var state = TdtDecoderState.make(decoderLayers: decoderLayers)
-        return try await manager.transcribe(url, decoderState: &state).text.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            return try await manager.transcribe(url, decoderState: &state).text.trimmingCharacters(in: .whitespacesAndNewlines)
+        } catch is AudioSourceError {
+            // The scratch file couldn't be made (e.g. the phone is short on space): decode in memory
+            // instead, about 4 MB a minute of audio.
+            let samples = try AudioConverter().resampleAudioFile(url)
+            state = TdtDecoderState.make(decoderLayers: decoderLayers)
+            return try await manager.transcribe(samples, decoderState: &state).text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
     }
 }
 
