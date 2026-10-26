@@ -3,6 +3,7 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DEFAULT_CLIENT_SETTING, noteSortKey } from '../shared/compliance'
+import { backfillDiagnoses } from '../shared/diagnosis'
 import { TRANSCRIBE_MODELS, type Client, type MobileMemo, type Note, type Settings } from '../shared/types'
 import { isLegacyBackup } from './legacyBackup'
 import type { LinkPairing } from './link'
@@ -23,6 +24,8 @@ export interface VaultData {
   link: LinkPairing | null
   /** Recordings already taken in, newest last, so one the phone sends twice isn't added twice. */
   receivedMemoIds: string[]
+  /** Set once clients without a diagnosis have taken one from their finalized intake, so a diagnosis cleared later stays cleared. */
+  diagnosesBackfilled?: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -125,7 +128,7 @@ export class Vault {
 
   private load(): VaultData {
     if (!existsSync(this.vaultPath)) {
-      return { version: 1, settings: { ...DEFAULT_SETTINGS }, apiKey: '', clients: [], notes: [], inbox: [], link: null, receivedMemoIds: [] }
+      return { version: 1, settings: { ...DEFAULT_SETTINGS }, apiKey: '', clients: [], notes: [], inbox: [], link: null, receivedMemoIds: [], diagnosesBackfilled: true }
     }
     const blob = readFileSync(this.vaultPath)
     if (!blob.subarray(0, MAGIC.length).equals(MAGIC)) throw new Error('Unrecognized vault file.')
@@ -138,11 +141,12 @@ export class Vault {
       version: 1,
       settings: migrateSettings({ ...DEFAULT_SETTINGS, ...raw.settings }),
       apiKey: migrateApiKey(raw.apiKey),
-      clients: (raw.clients ?? []).map((c) => migrateClient(c, notes)),
+      clients: (raw.clients ?? []).map((c) => migrateClient(c, notes)).map((c) => (raw.diagnosesBackfilled ? c : backfillDiagnoses(c, notes))),
       notes,
       inbox: raw.inbox ?? [],
       link: raw.link ?? null,
-      receivedMemoIds: raw.receivedMemoIds ?? []
+      receivedMemoIds: raw.receivedMemoIds ?? [],
+      diagnosesBackfilled: true
     }
   }
 

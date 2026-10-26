@@ -1,7 +1,8 @@
 import { createCipheriv, randomBytes, scryptSync } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import type { Client, Note, Settings } from '../src/shared/types'
-import { legacyDate, mergeLegacy, parseDiagnoses, summarizeLegacy, type LegacyClient } from '../src/shared/legacy'
+import { legacyDate, mergeLegacy, summarizeLegacy, type LegacyClient } from '../src/shared/legacy'
+import { parseDiagnoses } from '../src/shared/diagnosis'
 import { readLegacyBackup } from '../src/main/legacyBackup'
 import { noteSortKey, todayISO } from '../src/shared/compliance'
 import { buildQueue, queueCount } from '../src/shared/queue'
@@ -145,6 +146,17 @@ describe('legacy mapping', () => {
     expect(clients[0].plan?.goals[0].interventions).toBe('Cognitive restructuring\nValues work')
     expect(notes[0].sections[0].body).toBe('Riley reports worry.\nSleep is poor.')
     expect(notes[0].dictation).toBe('')
+  })
+
+  it('takes the diagnosis from an imported intake when the old client had none', () => {
+    const [c] = sample()
+    delete c.diagnosis
+    c.treatmentPlan!.diagnosis = ''
+    c.notes![0].sections!.push({ key: 'dx', title: 'Diagnostic Impressions', content: 'Diagnosis: F41.1 Generalized anxiety disorder; R/O F33.1' })
+    expect(mergeLegacy(empty(), [c], settings, uid).clients[0].diagnoses).toEqual([{ code: 'F41.1', description: 'Generalized anxiety disorder' }])
+    // An existing client re-imported with that intake is filled in too.
+    const existing = { ...mergeLegacy(empty(), [{ ...c, notes: [] }], settings, uid).clients[0], diagnoses: [] }
+    expect(mergeLegacy({ clients: [existing], notes: [] }, [c], settings, uid).clients.find((x) => x.id === c.id)?.diagnoses.map((d) => d.code)).toEqual(['F41.1'])
   })
 
   it('normalizes dates of service to local YYYY-MM-DD', () => {

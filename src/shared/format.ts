@@ -1,6 +1,7 @@
 import type { Client, Note, NoteSection, Settings, TreatmentPlan } from './types'
 import { GOAL_STATUS_LABEL, NOTE_TYPE_LABEL } from './types'
 import { formatDateUS, isTelehealth, placeOfService } from './compliance'
+import { noteDiagnoses } from './diagnosis'
 
 // Builds what lands on the clipboard. Everything is plain text first (most EHR
 // fields are plain text); an HTML twin keeps headings bold in rich-text fields.
@@ -36,7 +37,8 @@ export function headerLines(note: Note, client: Client, settings: Settings): str
     `Location: ${isTelehealth(s.setting) ? `Telehealth, synchronous audio-video${settings.telehealthPlatform ? ` (${settings.telehealthPlatform})` : ''}; ` : 'In person; '}${placeOfService(s.setting)}`
   )
   lines.push(`Participants: ${s.participants || 'Client'}`)
-  const dx = note.type === 'intake' && note.suggestions?.applyDiagnoses ? note.suggestions.diagnoses : client.diagnoses
+  const fromIntake = note.type === 'intake' && note.suggestions?.applyDiagnoses ? noteDiagnoses(note) : []
+  const dx = fromIntake.length ? fromIntake : client.diagnoses
   if (dx.length) lines.push(`Diagnosis: ${dx.map((d) => `${d.code} ${d.description}`).join('; ')}`)
   return lines
 }

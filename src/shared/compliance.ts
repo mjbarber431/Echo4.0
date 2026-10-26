@@ -1,4 +1,5 @@
 import type { Attestations, Client, Note, NoteType, SessionInfo, SessionSetting, Settings } from './types'
+import { noteDiagnoses } from './diagnosis'
 
 export const CPT_OPTIONS: Record<NoteType, { code: string; label: string }[]> = {
   intake: [{ code: '90791', label: '90791 · Diagnostic evaluation' }],
@@ -129,7 +130,7 @@ export function auditChecks(note: Note, client: Client): Check[] {
   const checks: Check[] = []
   const s = note.session
 
-  const hasDx = client.diagnoses.length > 0 || (note.type === 'intake' && (note.suggestions?.diagnoses.length ?? 0) > 0)
+  const hasDx = client.diagnoses.length > 0 || (note.type === 'intake' && noteDiagnoses(note).length > 0)
   checks.push(
     hasDx
       ? { id: 'dx', level: 'ok', label: 'Diagnosis on file' }

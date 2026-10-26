@@ -1,5 +1,6 @@
-import type { AiContextResult, AiNoteResult, AiPlanResult, Client, Diagnosis, Goal, Note, Settings, TreatmentPlan } from './types'
+import type { AiContextResult, AiNoteResult, AiPlanResult, Client, Goal, Note, Settings, TreatmentPlan } from './types'
 import { nextReviewDate, todayISO } from './compliance'
+import { noteDiagnoses } from './diagnosis'
 import { cleanBody } from './format'
 import { CONTEXT_VERSION, withFollowUp } from './prompts'
 
@@ -27,11 +28,6 @@ export function newGoal(id: NewId, now: string, g: { problem: string; goal: stri
   }
 }
 
-export function sameDiagnoses(a: Diagnosis[], b: Diagnosis[]): boolean {
-  const codes = (ds: Diagnosis[]) => ds.map((d) => d.code.trim().toUpperCase()).sort().join('|')
-  return codes(a) === codes(b)
-}
-
 /** Attach a fresh AI result to a draft note. Unknown goal IDs from the model are dropped. */
 export function applyAiResult(note: Note, result: AiNoteResult, client: Client, now: string): Note {
   const goalIds = new Set(client.plan?.goals.map((g) => g.id) ?? [])
@@ -50,7 +46,8 @@ export function applyAiResult(note: Note, result: AiNoteResult, client: Client, 
       diagnoses: result.diagnoses,
       contextUpdate: result.context_update.trim(),
       // The intake is the diagnostic evaluation, so its diagnoses replace any provisional one entered with the client.
-      applyDiagnoses: note.type === 'intake' && result.diagnoses.length > 0 && !sameDiagnoses(result.diagnoses, client.diagnoses)
+      // They're read from the note text at finalize (noteDiagnoses), so this stays on even when the model's list is empty.
+      applyDiagnoses: note.type === 'intake'
     },
     generatedAt: now,
     updatedAt: now
@@ -100,7 +97,8 @@ export function finalizeClient(note: Note, client: Client, settings: Settings, i
     const current = client.contextVersion === CONTEXT_VERSION || !client.context.trim()
     next = { ...next, context: s.contextUpdate, contextVersion: current ? CONTEXT_VERSION : client.contextVersion }
   }
-  if (s.applyDiagnoses && s.diagnoses.length) next.diagnoses = s.diagnoses
+  const diagnoses = noteDiagnoses(note)
+  if (s.applyDiagnoses && diagnoses.length) next.diagnoses = diagnoses
 
   const accepted = s.goalUpdates.filter((u) => u.accepted)
   const newGoals = s.newGoals.filter((g) => g.accepted)

@@ -1,5 +1,6 @@
-import type { Client, Diagnosis, Goal, GoalStatus, Note, NoteSection, Objective, Settings, TreatmentPlan } from './types'
+import type { Client, Goal, GoalStatus, Note, NoteSection, Objective, Settings, TreatmentPlan } from './types'
 import { DEFAULT_CLIENT_SETTING, nextReviewDate, scanRisk, todayISO } from './compliance'
+import { backfillDiagnoses, parseDiagnoses } from './diagnosis'
 import { cleanBody } from './format'
 
 // Import from the previous Echo app (Vertex/Gemini, ~/Documents/App). That app
@@ -98,28 +99,6 @@ export function asText(value: unknown): string {
   return String(value)
 }
 
-const ICD10 = /\b([A-TV-Z]\d{2}(?:\.[0-9A-Z]{1,4})?)\b/g
-
-/** ICD-10 codes found in free-text diagnoses, plus any text that carried no code. */
-export function parseDiagnoses(...texts: unknown[]): { diagnoses: Diagnosis[]; uncoded: string[] } {
-  const diagnoses: Diagnosis[] = []
-  const uncoded: string[] = []
-  for (const text of texts) {
-    for (const segment of asText(text).split(/[;\n]+/).map((s) => s.trim()).filter(Boolean)) {
-      const codes = [...segment.matchAll(ICD10)].map((m) => m[1])
-      if (codes.length === 0) {
-        if (!uncoded.includes(segment)) uncoded.push(segment)
-        continue
-      }
-      const rest = codes.length === 1 ? segment.replace(codes[0], '').replace(/ICD-?10(?:-CM)?/gi, '').replace(/^[\s:–—,()-]+|[\s:–—,()-]+$/g, '').replace(/\(\s*\)/g, '').trim() : ''
-      for (const code of codes) {
-        if (!diagnoses.some((d) => d.code === code)) diagnoses.push({ code, description: rest })
-      }
-    }
-  }
-  return { diagnoses, uncoded }
-}
-
 /** A date of service as YYYY-MM-DD in local time. Full timestamps are converted, not sliced, so evening sessions keep their day. */
 export function legacyDate(raw: string | undefined, fallback: string): string {
   for (const value of [raw, fallback]) {
@@ -194,7 +173,7 @@ function seedScratchpad(c: LegacyClient): string {
 }
 
 export function mapClient(c: LegacyClient, settings: Settings, uid: () => string): Client {
-  const { diagnoses, uncoded } = parseDiagnoses(c.diagnosis, c.treatmentPlan?.diagnosis)
+  const { diagnoses, uncoded } = parseDiagnoses(asText(c.diagnosis), asText(c.treatmentPlan?.diagnosis))
   return {
     id: c.id,
     name: c.name,
@@ -319,6 +298,16 @@ export function mergeLegacy(current: { clients: Client[]; notes: Note[] }, legac
       notes.push(mapNote(ln, client, settings))
       report.notesAdded++
     }
+  }
+  // Old intakes never set a diagnosis, so a client without one takes what its intake gives.
+  for (const lc of legacy) {
+    const i = clients.findIndex((c) => c.id === lc.id)
+    const client = i >= 0 ? clients[i] : current.clients.find((c) => c.id === lc.id)
+    if (!client) continue
+    const filled = backfillDiagnoses(client, [...current.notes, ...notes])
+    if (filled === client) continue
+    if (i >= 0) clients[i] = filled
+    else clients.push(filled)
   }
   return { clients, notes, report }
 }

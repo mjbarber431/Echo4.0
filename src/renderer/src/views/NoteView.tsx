@@ -4,7 +4,8 @@ import type { AiSuggestions, Client, Note, NoteSection } from '@shared/types'
 import { GOAL_STATUS_LABEL, modelLabel, NOTE_TYPE_LABEL } from '@shared/types'
 import { auditChecks, CPT_OPTIONS, isTelehealth, scanRisk, todayISO, type Check as AuditCheck } from '@shared/compliance'
 import { headerLines, noteToHtml, noteToText, sectionHtml, sectionText } from '@shared/format'
-import { finalizeClient, sameDiagnoses } from '@shared/finalize'
+import { noteDiagnoses, sameDiagnoses } from '@shared/diagnosis'
+import { finalizeClient } from '@shared/finalize'
 import { sectionsFor } from '@shared/prompts'
 import { buildQueue, isModelFailure, suggestModel, type NoteJob } from '@shared/queue'
 import { api, nowISO, relativeDay, uid } from '../lib/util'
@@ -402,7 +403,7 @@ function NoteEditor({ note, client }: { note: Note; client: Client }) {
                 </button>
               )}
               {note.suggestions && (
-                <Suggestions client={client} suggestions={note.suggestions} applied={!!note.finalizedAt} onChange={(suggestions) => update({ suggestions })} />
+                <Suggestions note={note} client={client} suggestions={note.suggestions} applied={!!note.finalizedAt} onChange={(suggestions) => update({ suggestions })} />
               )}
             </div>
           ) : (
@@ -569,10 +570,12 @@ function ReviewItems({ items, onDismiss }: { items: string[]; onDismiss(i: numbe
   )
 }
 
-function Suggestions({ client, suggestions: s, applied, onChange }: { client: Client; suggestions: AiSuggestions; applied: boolean; onChange(s: AiSuggestions): void }) {
+function Suggestions({ note, client, suggestions: s, applied, onChange }: { note: Note; client: Client; suggestions: AiSuggestions; applied: boolean; onChange(s: AiSuggestions): void }) {
   const [showContext, setShowContext] = useState(false)
   const goals = client.plan?.goals ?? []
-  const offerDx = s.diagnoses.length > 0 && (s.applyDiagnoses || !sameDiagnoses(s.diagnoses, client.diagnoses))
+  // Read from the note as it now stands, so editing the Diagnostic Impression changes what's offered.
+  const dx = noteDiagnoses(note)
+  const offerDx = dx.length > 0 && (applied ? s.applyDiagnoses && sameDiagnoses(dx, client.diagnoses) : !sameDiagnoses(dx, client.diagnoses))
   const has = s.goalUpdates.length || s.newGoals.length || offerDx || s.contextUpdate
   if (!has) return null
   return (
@@ -618,7 +621,7 @@ function Suggestions({ client, suggestions: s, applied, onChange }: { client: Cl
           <input type="checkbox" disabled={applied} checked={s.applyDiagnoses} onChange={(e) => onChange({ ...s, applyDiagnoses: e.target.checked })} />
           <div>
             <b>{client.diagnoses.length && !applied ? 'Replace diagnosis' : 'Set diagnosis'}</b>
-            <p>{s.diagnoses.map((d) => `${d.code} ${d.description}`).join('; ')}</p>
+            <p>{dx.map((d) => `${d.code} ${d.description}`).join('; ')}</p>
           </div>
         </label>
       )}

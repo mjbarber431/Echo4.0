@@ -4,6 +4,7 @@ import { auditChecks, cptForMinutes, defaultAttestations, defaultSession, scanRi
 import { buildAmendMessages, buildNoteMessages, buildPlanMessages, NOTE_SCHEMA, PLAN_SCHEMA, PROGRESS_SECTIONS, redactName } from '../src/shared/prompts'
 import { cleanBody, noteToHtml, noteToText, planToDocumentHtml } from '../src/shared/format'
 import { applyAiResult, applyAmendResult, finalizeClient } from '../src/shared/finalize'
+import { backfillDiagnoses, diagnosesInSections, noteDiagnoses } from '../src/shared/diagnosis'
 import { buildQueue, isModelFailure, nextModelUp, queueCount, suggestModel } from '../src/shared/queue'
 import { COVERAGE_MODEL, coverage, parseReply, type MessageReply } from '../src/main/ai'
 import { migrateApiKey, migrateSettings } from '../src/main/vault'
@@ -301,16 +302,74 @@ describe('note output', () => {
     expect(next.scratchpad).toBe(client.scratchpad)
   })
 
+  const impression = (body: string) => [{ heading: 'Diagnostic Impression', body }]
+
   it('an intake’s diagnoses replace the one entered with the client', () => {
     const client = makeClient()
     const dx = [{ code: 'F41.0', description: 'Panic disorder' }]
-    const intake = applyAiResult(makeNote({ type: 'intake' }), { ...result, diagnoses: dx }, client, 'now')
+    const intake = applyAiResult(makeNote({ type: 'intake' }), { ...result, sections: impression('F41.0 Panic disorder. Recurrent unexpected attacks.'), diagnoses: dx }, client, 'now')
     expect(intake.suggestions?.applyDiagnoses).toBe(true)
     expect(noteToText(intake, client, settings)).toContain('Diagnosis: F41.0 Panic disorder')
     expect(finalizeClient(intake, client, settings, id, 'now').diagnoses).toEqual(dx)
-    // Unchanged codes and progress notes leave the record alone.
-    expect(applyAiResult(makeNote({ type: 'intake' }), { ...result, diagnoses: client.diagnoses }, client, 'now').suggestions?.applyDiagnoses).toBe(false)
+    // Progress notes leave the record alone unless the clinician opts in.
     expect(applyAiResult(makeNote(), { ...result, diagnoses: dx }, client, 'now').suggestions?.applyDiagnoses).toBe(false)
+  })
+
+  it('takes an intake’s diagnoses from its text when the model’s list is empty', () => {
+    const client = { ...makeClient(), diagnoses: [] }
+    const sections = impression('Provisional diagnoses:\nF41.1 Generalized anxiety disorder\nMajor depressive disorder, single episode, moderate (F32.1)\n\nClient meets DSM-5-TR criteria for both.')
+    const intake = applyAiResult(makeNote({ type: 'intake' }), { ...result, sections, diagnoses: [] }, client, 'now')
+    expect(finalizeClient(intake, client, settings, id, 'now').diagnoses).toEqual([
+      { code: 'F41.1', description: 'Generalized anxiety disorder' },
+      { code: 'F32.1', description: 'Major depressive disorder, single episode, moderate' }
+    ])
+    expect(auditChecks(intake, client).find((c) => c.id === 'dx')?.level).toBe('ok')
+  })
+
+  it('reads the diagnosis as the clinician left it, with the model’s names where the codes match', () => {
+    const client = makeClient()
+    const generated = applyAiResult(
+      makeNote({ type: 'intake' }),
+      { ...result, sections: impression('F41.1 GAD.'), diagnoses: [{ code: 'F41.1', description: 'Generalized anxiety disorder' }] },
+      client,
+      'now'
+    )
+    expect(noteDiagnoses(generated)).toEqual([{ code: 'F41.1', description: 'Generalized anxiety disorder' }])
+    // The draft matches the client's diagnosis, so nothing changes until the clinician edits it.
+    expect(finalizeClient(generated, client, settings, id, 'now').diagnoses).toEqual(client.diagnoses)
+    const edited = { ...generated, sections: impression('F41.1 GAD. F43.10 Post-traumatic stress disorder, chronic.') }
+    expect(finalizeClient(edited, client, settings, id, 'now').diagnoses.map((d) => d.code)).toEqual(['F41.1', 'F43.10'])
+    // Unchecking the suggestion keeps the client's diagnosis.
+    const declined = { ...edited, suggestions: { ...edited.suggestions!, applyDiagnoses: false } }
+    expect(finalizeClient(declined, client, settings, id, 'now').diagnoses).toEqual(client.diagnoses)
+  })
+
+  it('skips rule-outs, differentials and criteria not met', () => {
+    const found = diagnosesInSections(
+      impression('F41.1 Generalized anxiety disorder. Rule out F31.81 bipolar II disorder. Differential: F43.10 PTSD. Criteria for F42.2 OCD not met; Z63.0 Relationship distress with spouse')
+    )
+    expect(found).toEqual([
+      { code: 'F41.1', description: 'Generalized anxiety disorder' },
+      { code: 'Z63.0', description: 'Relationship distress with spouse' }
+    ])
+  })
+
+  it('reads codes only from diagnostic sections, or F codes when a note has none', () => {
+    const sections = [
+      { heading: 'Medical History', body: 'E11.9 type 2 diabetes, managed by PCP.' },
+      { heading: 'Assessment', body: 'Symptoms consistent with F41.1 Generalized anxiety disorder.' }
+    ]
+    expect(diagnosesInSections(sections).map((d) => d.code)).toEqual(['F41.1'])
+    expect(diagnosesInSections([...sections, ...impression('F33.1 Major depressive disorder, recurrent, moderate')]).map((d) => d.code)).toEqual(['F33.1'])
+  })
+
+  it('fills a client with no diagnosis from its latest finalized intake', () => {
+    const client = { ...makeClient(), diagnoses: [] }
+    const intake = (date: string, body: string, status: Note['status'] = 'final') => makeNote({ id: date, type: 'intake', status, session: { ...makeNote().session, date }, sections: impression(body) })
+    const notes = [intake('2026-01-01', 'F41.1 Generalized anxiety disorder'), intake('2026-03-01', 'F41.0 Panic disorder'), intake('2026-05-01', 'F32.1 MDD', 'draft')]
+    expect(backfillDiagnoses(client, notes).diagnoses).toEqual([{ code: 'F41.0', description: 'Panic disorder' }])
+    // A diagnosis already on file is never replaced.
+    expect(backfillDiagnoses(makeClient(), notes).diagnoses.map((d) => d.code)).toEqual(['F41.1'])
   })
 
   it('termination moves the client to discharged', () => {
