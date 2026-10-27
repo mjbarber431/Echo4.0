@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, FileDown, ImagePlus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileDown, ImagePlus } from 'lucide-react'
 import type { Client } from '@shared/types'
 import { todayISO } from '@shared/compliance'
 import { letterToDocumentHtml, signerLabel, type Letter, type Letterhead } from '@shared/letter'
@@ -30,8 +30,6 @@ export function LetterModal({ client, onClose }: { client: Client; onClose(): vo
       // Signed by whoever is using Echo, if they're one of the signers.
       const me = lh.signers.find((s) => s.name.trim() && settings.clinicianName.toLowerCase().includes(s.name.trim().toLowerCase())) ?? lh.signers[0]
       setLetter((l) => ({ ...l, signerIds: me ? [me.id] : [] }))
-      // Nothing to sign with yet: open the setup so the images can be added first.
-      setSetup(!lh.logo || lh.signers.every((s) => !s.signature))
     })
   }, [settings.clinicianName])
 
@@ -148,8 +146,8 @@ export function LetterModal({ client, onClose }: { client: Client; onClose(): vo
             </button>
             {setup && (
               <div className="form letter-setup">
-                <p className="muted small">Shared by every letter. The logo and signatures are kept in Echo’s encrypted data, never in the app itself.</p>
-                <ImageRow label="Logo" src={letterhead.logo} onChoose={() => chooseImage('logo')} onRemove={() => setHead({ logo: '' })} />
+                <p className="muted small">Shared by every letter.</p>
+                <ImageRow label="Logo" src={letterhead.logo} onChoose={() => chooseImage('logo')} />
                 <Field label="Practice name">
                   <input value={letterhead.practiceName} onChange={(e) => setHead({ practiceName: e.target.value })} />
                 </Field>
@@ -177,7 +175,7 @@ export function LetterModal({ client, onClose }: { client: Client; onClose(): vo
                       <Field label="Title">
                         <input value={s.title} onChange={(e) => update({ title: e.target.value })} />
                       </Field>
-                      <ImageRow label="Signature" src={s.signature} onChoose={() => chooseImage('signature', s.id)} onRemove={() => update({ signature: '' })} />
+                      <ImageRow label="Signature" src={s.signature} onChoose={() => chooseImage('signature', s.id)} />
                     </div>
                   )
                 })}
@@ -193,7 +191,7 @@ export function LetterModal({ client, onClose }: { client: Client; onClose(): vo
   )
 }
 
-function ImageRow({ label, src, onChoose, onRemove }: { label: string; src: string; onChoose(): void; onRemove(): void }) {
+function ImageRow({ label, src, onChoose }: { label: string; src: string; onChoose(): void }) {
   return (
     <div className="field">
       <span className="field-label">{label}</span>
@@ -202,7 +200,6 @@ function ImageRow({ label, src, onChoose, onRemove }: { label: string; src: stri
         <Button size="sm" icon={<ImagePlus size={14} />} onClick={onChoose}>
           {src ? 'Replace…' : 'Choose…'}
         </Button>
-        {src && <Button size="sm" variant="ghost" icon={<Trash2 size={14} />} onClick={onRemove} aria-label={`Remove ${label.toLowerCase()}`} />}
       </div>
     </div>
   )

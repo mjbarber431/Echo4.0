@@ -28,6 +28,18 @@
       {
         "from": "native/transcriber/dist/EchoTranscriber",
         "to": "EchoTranscriber"
+      },
+      {
+        "from": "Green logo.png",
+        "to": "letterhead/logo.png"
+      },
+      {
+        "from": "Matthew Signature.png",
+        "to": "letterhead/matthew.png"
+      },
+      {
+        "from": "Grace Signature.png",
+        "to": "letterhead/grace.png"
       }
     ],
     "directories": {

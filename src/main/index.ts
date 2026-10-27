@@ -84,6 +84,27 @@ function finalizedNotes(clientId: string, excludeId?: string): Note[] {
     .sort((a, b) => noteSortKey(b).localeCompare(noteSortKey(a)))
 }
 
+/** Cropped to the ink and scaled to what a printed page needs, as a PNG data URL. */
+function letterheadImage(image: Electron.NativeImage, kind: 'logo' | 'signature'): string {
+  const trimmed = trimToInk(image)
+  const width = Math.min(trimmed.getSize().width, kind === 'logo' ? 600 : 1000)
+  return trimmed.resize({ width, quality: 'best' }).toDataURL()
+}
+
+// The practice's logo and signatures ship inside the app (package.json extraResources);
+// in development they're read from the project folder. '' if one isn't there.
+const BUNDLED_LETTERHEAD: Record<string, string> = { logo: 'Green logo.png', matthew: 'Matthew Signature.png', grace: 'Grace Signature.png' }
+const bundled = new Map<string, string>()
+function bundledImage(id: string): string {
+  if (!BUNDLED_LETTERHEAD[id]) return ''
+  if (!bundled.has(id)) {
+    const path = app.isPackaged ? join(process.resourcesPath, 'letterhead', `${id}.png`) : join(app.getAppPath(), BUNDLED_LETTERHEAD[id])
+    const image = nativeImage.createFromPath(path)
+    bundled.set(id, image.isEmpty() ? '' : letterheadImage(image, id === 'logo' ? 'logo' : 'signature'))
+  }
+  return bundled.get(id)!
+}
+
 /** Crops an image to its ink: pixels that are neither transparent nor near-white. */
 function trimToInk(image: Electron.NativeImage): Electron.NativeImage {
   const { width, height } = image.getSize()
@@ -394,10 +415,23 @@ function registerIpc(): void {
     if (update.state === 'ready') autoUpdater.quitAndInstall()
   })
 
-  ipcMain.handle('letterhead:get', () => vault.data.letterhead ?? DEFAULT_LETTERHEAD)
+  ipcMain.handle('letterhead:get', () => {
+    // Any image not chosen in the editor comes from the copies shipped with the app.
+    const letterhead = vault.data.letterhead ?? DEFAULT_LETTERHEAD
+    return {
+      ...letterhead,
+      logo: letterhead.logo || bundledImage('logo'),
+      signers: letterhead.signers.map((s) => ({ ...s, signature: s.signature || bundledImage(s.id) }))
+    }
+  })
 
   ipcMain.handle('letterhead:save', (_e, letterhead: Letterhead) => {
-    vault.data.letterhead = letterhead
+    // Only images chosen in the editor are stored; the shipped ones stay with the app, so a new release can update them.
+    vault.data.letterhead = {
+      ...letterhead,
+      logo: letterhead.logo === bundledImage('logo') ? '' : letterhead.logo,
+      signers: letterhead.signers.map((s) => (s.signature === bundledImage(s.id) ? { ...s, signature: '' } : s))
+    }
     vault.save()
   })
 
@@ -410,10 +444,7 @@ function registerIpc(): void {
     if (result.canceled || !result.filePaths[0]) return null
     const image = nativeImage.createFromPath(result.filePaths[0])
     if (image.isEmpty()) throw new Error('That file couldn’t be opened as an image.')
-    // Cropped to the ink and scaled to what a printed page needs, so the vault stays small.
-    const trimmed = trimToInk(image)
-    const width = Math.min(trimmed.getSize().width, kind === 'logo' ? 600 : 1000)
-    return trimmed.resize({ width, quality: 'best' }).toDataURL()
+    return letterheadImage(image, kind)
   })
 
   ipcMain.handle('letter:pdf', async (_e, letter: Letter, clientName: string) => {
@@ -423,7 +454,8 @@ function registerIpc(): void {
       filters: [{ name: 'PDF', extensions: ['pdf'] }]
     })
     if (result.canceled || !result.filePath) return null
-    const letterhead = vault.data.letterhead ?? DEFAULT_LETTERHEAD
+    const saved = vault.data.letterhead ?? DEFAULT_LETTERHEAD
+    const letterhead = { ...saved, logo: saved.logo || bundledImage('logo'), signers: saved.signers.map((s) => ({ ...s, signature: s.signature || bundledImage(s.id) })) }
     // As with the plan: rendered from memory with scripts off.
     const page = new BrowserWindow({ show: false, webPreferences: { javascript: false, sandbox: true, contextIsolation: true, nodeIntegration: false } })
     try {

@@ -5,7 +5,8 @@ release/
 native/transcriber/.build/
 native/transcriber/dist/
 
-# Private documents and images; never commit
+# Private documents and images; never commit. The logo and signatures are
+# copied into release builds (extraResources) for letters.
 *.pdf
 Grace Signature.png
 Matthew Signature.png
