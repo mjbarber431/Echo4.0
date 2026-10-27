@@ -65,11 +65,11 @@ export function noteToText(note: Note, client: Client, settings: Settings): stri
   return parts.join('\n\n')
 }
 
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-function paragraphsHtml(text: string): string {
+export function paragraphsHtml(text: string): string {
   return text
     .split(/\n{2,}/)
     .map((p) => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`)

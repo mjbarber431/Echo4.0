@@ -1,5 +1,6 @@
 import type { LiveEvent } from './coach'
 import type { LegacyClientSummary, LegacyImportReport } from './legacy'
+import type { Letter, Letterhead } from './letter'
 
 // Data model shared by the main process and the renderer.
 // IDs are UUIDs and every record carries timestamps so a future iOS companion
@@ -169,6 +170,14 @@ export interface PublicSettings extends Settings {
   mockAI: boolean
 }
 
+/** A new version of Echo being fetched in the background. */
+export interface UpdateStatus {
+  state: 'idle' | 'downloading' | 'ready'
+  version: string
+  /** Download progress, 0–1. */
+  progress: number
+}
+
 /** The local speech model, as the main process reports it. */
 export interface TranscriberStatus {
   state: 'idle' | 'loading' | 'downloading' | 'ready' | 'error'
@@ -276,6 +285,10 @@ export interface EchoApi {
   transcribe(pcm: ArrayBuffer): Promise<string>
   transcriberStatus(): Promise<TranscriberStatus>
   onTranscriber(handler: (status: TranscriberStatus) => void): () => void
+  updateStatus(): Promise<UpdateStatus>
+  onUpdate(handler: (status: UpdateStatus) => void): () => void
+  /** Quits and installs a downloaded update. */
+  installUpdate(): void
   /** Opens the live transcription stream; false when there's none to open (demo mode). Events arrive through onLive. */
   liveStart(): Promise<boolean>
   /** 16 kHz mono PCM16 audio for the live stream. */
@@ -294,6 +307,12 @@ export interface EchoApi {
   rebuildContext(clientId: string): Promise<AiContextResult>
   /** Renders the client's plan to a PDF the clinician picks a location for. Null if cancelled. */
   savePlanPdf(clientId: string): Promise<string | null>
+  getLetterhead(): Promise<Letterhead>
+  saveLetterhead(letterhead: Letterhead): Promise<void>
+  /** Asks for an image file and returns it cropped and scaled as a PNG data URL. Null if cancelled. */
+  chooseLetterheadImage(kind: 'logo' | 'signature'): Promise<string | null>
+  /** Renders a letter on the letterhead to a PDF the clinician picks a location for. Null if cancelled. */
+  saveLetterPdf(letter: Letter, clientName: string): Promise<string | null>
   copy(text: string, html: string): Promise<void>
   canUseTouchId(): Promise<boolean>
   unlock(): Promise<boolean>

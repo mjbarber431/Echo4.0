@@ -7,6 +7,7 @@ import { backfillDiagnoses } from '../shared/diagnosis'
 import { TRANSCRIBE_MODELS, type Client, type MobileMemo, type Note, type Settings } from '../shared/types'
 import { isLegacyBackup } from './legacyBackup'
 import type { LinkPairing } from './link'
+import type { Letterhead } from '../shared/letter'
 
 // All client data lives in one AES-256-GCM encrypted file. The data key is
 // random and itself encrypted with the macOS Keychain via Electron safeStorage,
@@ -26,6 +27,8 @@ export interface VaultData {
   receivedMemoIds: string[]
   /** Set once clients without a diagnosis have taken one from their finalized intake, so a diagnosis cleared later stays cleared. */
   diagnosesBackfilled?: boolean
+  /** Logo, signatures and practice details for letters. Missing until first edited. */
+  letterhead?: Letterhead
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -146,7 +149,8 @@ export class Vault {
       inbox: raw.inbox ?? [],
       link: raw.link ?? null,
       receivedMemoIds: raw.receivedMemoIds ?? [],
-      diagnosesBackfilled: true
+      diagnosesBackfilled: true,
+      letterhead: raw.letterhead
     }
   }
 

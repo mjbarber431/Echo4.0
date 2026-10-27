@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { LiveEvent } from '../shared/coach'
-import type { EchoApi, MobileLinkStatus, MobileMemo, TranscriberStatus } from '../shared/types'
+import type { EchoApi, MobileLinkStatus, MobileMemo, TranscriberStatus, UpdateStatus } from '../shared/types'
 
 const api: EchoApi = {
   getState: () => ipcRenderer.invoke('state:get'),
@@ -19,6 +19,13 @@ const api: EchoApi = {
     ipcRenderer.on('transcriber', listener)
     return () => ipcRenderer.removeListener('transcriber', listener)
   },
+  updateStatus: () => ipcRenderer.invoke('update:status'),
+  onUpdate: (handler) => {
+    const listener = (_e: Electron.IpcRendererEvent, status: UpdateStatus) => handler(status)
+    ipcRenderer.on('update', listener)
+    return () => ipcRenderer.removeListener('update', listener)
+  },
+  installUpdate: () => ipcRenderer.send('update:install'),
   liveStart: () => ipcRenderer.invoke('live:start'),
   liveAudio: (pcm) => ipcRenderer.send('live:audio', pcm),
   liveCommit: () => ipcRenderer.send('live:commit'),
@@ -34,6 +41,10 @@ const api: EchoApi = {
   generatePlan: (clientId, dictation) => ipcRenderer.invoke('ai:plan', clientId, dictation),
   rebuildContext: (clientId) => ipcRenderer.invoke('ai:context', clientId),
   savePlanPdf: (clientId) => ipcRenderer.invoke('plan:pdf', clientId),
+  getLetterhead: () => ipcRenderer.invoke('letterhead:get'),
+  saveLetterhead: (letterhead) => ipcRenderer.invoke('letterhead:save', letterhead),
+  chooseLetterheadImage: (kind) => ipcRenderer.invoke('letterhead:image', kind),
+  saveLetterPdf: (letter, clientName) => ipcRenderer.invoke('letter:pdf', letter, clientName),
   copy: (text, html) => ipcRenderer.invoke('clipboard:write', text, html),
   canUseTouchId: () => ipcRenderer.invoke('lock:available'),
   unlock: () => ipcRenderer.invoke('lock:unlock'),

@@ -5,6 +5,7 @@ import { buildQueue, queueCount } from '@shared/queue'
 import { useStore } from '../store'
 import { Avatar, Kbd } from './ui'
 import { ActivityPanel } from './ActivityPanel'
+import { UpdateBadge } from './UpdateBadge'
 
 export function Sidebar({ onNewClient, onFind }: { onNewClient(): void; onFind(): void }) {
   const { clients, notes, inbox, jobs, route, navigate } = useStore()
@@ -74,6 +75,7 @@ export function Sidebar({ onNewClient, onFind }: { onNewClient(): void; onFind()
       </div>
 
       <ActivityPanel />
+      <UpdateBadge />
 
       <button className={`side-item side-settings ${route.view === 'settings' ? 'active' : ''}`} onClick={() => navigate({ view: 'settings' })}>
         <span className="side-icon">

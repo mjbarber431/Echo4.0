@@ -1,13 +1,14 @@
-import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeTheme, powerMonitor, session, shell, systemPreferences } from 'electron'
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeImage, nativeTheme, powerMonitor, session, shell, systemPreferences } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import QRCode from 'qrcode'
 import { autoUpdater } from 'electron-updater'
-import { WRITING_MODELS, type AppState, type Client, type MobileLinkStatus, type Note, type PublicSettings, type Settings } from '../shared/types'
+import { WRITING_MODELS, type AppState, type Client, type MobileLinkStatus, type Note, type PublicSettings, type Settings, type UpdateStatus } from '../shared/types'
 import { coachItems, mockCoverage } from '../shared/coach'
 import { noteSortKey } from '../shared/compliance'
 import { planToDocumentHtml } from '../shared/format'
+import { DEFAULT_LETTERHEAD, letterFooterTemplate, letterToDocumentHtml, type Letter, type Letterhead } from '../shared/letter'
 import { mergeLegacy, summarizeLegacy, type LegacyClient } from '../shared/legacy'
 import { readLegacyBackup } from './legacyBackup'
 import { Vault } from './vault'
@@ -30,6 +31,12 @@ let legacy: LegacyClient[] | null = null
 let link: LinkServer
 /** The last problem the iPhone link ran into, until it next works. */
 let linkError = ''
+let update: UpdateStatus = { state: 'idle', version: '', progress: 0 }
+
+function setUpdate(next: UpdateStatus): void {
+  update = next
+  win?.webContents.send('update', update)
+}
 
 function publicSettings(): PublicSettings {
   return { ...vault.data.settings, hasApiKey: !!vault.data.apiKey, mockAI: MOCK }
@@ -75,6 +82,28 @@ function finalizedNotes(clientId: string, excludeId?: string): Note[] {
   return vault.data.notes
     .filter((n) => n.clientId === clientId && n.id !== excludeId && n.status === 'final')
     .sort((a, b) => noteSortKey(b).localeCompare(noteSortKey(a)))
+}
+
+/** Crops an image to its ink: pixels that are neither transparent nor near-white. */
+function trimToInk(image: Electron.NativeImage): Electron.NativeImage {
+  const { width, height } = image.getSize()
+  const bgra = image.toBitmap()
+  let top = height, left = width, bottom = -1, right = -1
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4
+      if (bgra[i + 3] < 24 || (bgra[i] > 235 && bgra[i + 1] > 235 && bgra[i + 2] > 235)) continue
+      if (y < top) top = y
+      if (y > bottom) bottom = y
+      if (x < left) left = x
+      if (x > right) right = x
+    }
+  }
+  if (bottom < 0) return image
+  const pad = Math.round(Math.max(width, height) * 0.01)
+  const x = Math.max(0, left - pad)
+  const y = Math.max(0, top - pad)
+  return image.crop({ x, y, width: Math.min(width, right + pad + 1) - x, height: Math.min(height, bottom + pad + 1) - y })
 }
 
 function send(command: string): void {
@@ -360,6 +389,60 @@ function registerIpc(): void {
     }
   })
 
+  ipcMain.handle('update:status', () => update)
+  ipcMain.on('update:install', () => {
+    if (update.state === 'ready') autoUpdater.quitAndInstall()
+  })
+
+  ipcMain.handle('letterhead:get', () => vault.data.letterhead ?? DEFAULT_LETTERHEAD)
+
+  ipcMain.handle('letterhead:save', (_e, letterhead: Letterhead) => {
+    vault.data.letterhead = letterhead
+    vault.save()
+  })
+
+  ipcMain.handle('letterhead:image', async (_e, kind: 'logo' | 'signature') => {
+    const result = await dialog.showOpenDialog(win!, {
+      title: kind === 'logo' ? 'Choose your logo' : 'Choose a signature',
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }],
+      properties: ['openFile']
+    })
+    if (result.canceled || !result.filePaths[0]) return null
+    const image = nativeImage.createFromPath(result.filePaths[0])
+    if (image.isEmpty()) throw new Error('That file couldn’t be opened as an image.')
+    // Cropped to the ink and scaled to what a printed page needs, so the vault stays small.
+    const trimmed = trimToInk(image)
+    const width = Math.min(trimmed.getSize().width, kind === 'logo' ? 600 : 1000)
+    return trimmed.resize({ width, quality: 'best' }).toDataURL()
+  })
+
+  ipcMain.handle('letter:pdf', async (_e, letter: Letter, clientName: string) => {
+    const result = await dialog.showSaveDialog(win!, {
+      title: 'Save letter as PDF',
+      defaultPath: `Letter - ${clientName.replace(/[/\\:*?"<>|]/g, '')} - ${letter.date || new Date().toISOString().slice(0, 10)}.pdf`,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    })
+    if (result.canceled || !result.filePath) return null
+    const letterhead = vault.data.letterhead ?? DEFAULT_LETTERHEAD
+    // As with the plan: rendered from memory with scripts off.
+    const page = new BrowserWindow({ show: false, webPreferences: { javascript: false, sandbox: true, contextIsolation: true, nodeIntegration: false } })
+    try {
+      await page.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(letterToDocumentHtml(letter, letterhead))}`)
+      const pdf = await page.webContents.printToPDF({
+        pageSize: 'Letter',
+        preferCSSPageSize: true,
+        printBackground: true,
+        displayHeaderFooter: !!letterhead.footer.trim(),
+        headerTemplate: '<span></span>',
+        footerTemplate: letterFooterTemplate(letterhead)
+      })
+      writeFileSync(result.filePath, pdf, { mode: 0o600 })
+      return result.filePath
+    } finally {
+      page.destroy()
+    }
+  })
+
   ipcMain.handle('clipboard:write', (_e, text: string, html: string) =>
     clipboard.write([new ClipboardItem({ 'text/plain': text, 'text/html': html })])
   )
@@ -511,6 +594,11 @@ app.whenReady().then(() => {
   if (!MOCK) prepareTranscriber(vault.data.settings.transcribeModel).catch(() => {})
 
   // Check GitHub Releases for a newer version; it downloads in the background and installs on quit.
+  // The sidebar shows the download and, once it's in, offers to restart.
+  autoUpdater.on('update-available', (info) => setUpdate({ state: 'downloading', version: info.version, progress: 0 }))
+  autoUpdater.on('download-progress', (p) => setUpdate({ ...update, state: 'downloading', progress: p.percent / 100 }))
+  autoUpdater.on('update-downloaded', (info) => setUpdate({ state: 'ready', version: info.version, progress: 1 }))
+  autoUpdater.on('error', () => update.state === 'downloading' && setUpdate({ state: 'idle', version: '', progress: 0 }))
   if (app.isPackaged && !MOCK) autoUpdater.checkForUpdatesAndNotify().catch(() => {})
 
   app.on('activate', () => {

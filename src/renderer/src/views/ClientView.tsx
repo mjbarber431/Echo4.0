@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Archive, ChevronRight, ClipboardList, FileText, LogOut, MoreHorizontal, NotebookPen, Pencil, Plus, RotateCcw, Trash2, UserRoundCheck } from 'lucide-react'
+import { Archive, ChevronRight, ClipboardList, FileText, LogOut, Mail, MoreHorizontal, NotebookPen, Pencil, Plus, RotateCcw, Trash2, UserRoundCheck } from 'lucide-react'
 import type { Client, Note, NoteType } from '@shared/types'
 import { NOTE_TYPE_LABEL } from '@shared/types'
 import { noteSortKey, planReviewDue, todayISO } from '@shared/compliance'
@@ -8,6 +8,7 @@ import { openLoopCount } from '@shared/scratch'
 import { relativeDay } from '../lib/util'
 import { useStore, type ClientTab } from '../store'
 import { ClientModal } from '../components/ClientModal'
+import { LetterModal } from '../components/LetterModal'
 import { Scratchpad } from '../components/Scratchpad'
 import { AutoTextarea, Avatar, Button, CopyButton, Empty } from '../components/ui'
 import { PlanTab } from './PlanTab'
@@ -17,6 +18,7 @@ export function ClientView({ clientId, tab = 'notes' }: { clientId: string; tab?
   const client = clients.find((c) => c.id === clientId)
   const [editing, setEditing] = useState(false)
   const [menu, setMenu] = useState(false)
+  const [letter, setLetter] = useState(false)
 
   const clientNotes = useMemo(
     () => notes.filter((n) => n.clientId === clientId).sort((a, b) => noteSortKey(b).localeCompare(noteSortKey(a))),
@@ -93,6 +95,9 @@ export function ClientView({ clientId, tab = 'notes' }: { clientId: string; tab?
                 <button onClick={() => start('termination')}>
                   <LogOut size={14} /> Discharge summary
                 </button>
+                <button onClick={() => (setMenu(false), setLetter(true))}>
+                  <Mail size={14} /> Letter on letterhead…
+                </button>
                 <hr />
                 <button onClick={() => (setMenu(false), setEditing(true))}>
                   <Pencil size={14} /> Edit client
@@ -151,6 +156,7 @@ export function ClientView({ clientId, tab = 'notes' }: { clientId: string; tab?
       </div>
 
       {editing && <ClientModal client={client} onClose={() => setEditing(false)} />}
+      {letter && <LetterModal client={client} onClose={() => setLetter(false)} />}
     </div>
   )
 }
