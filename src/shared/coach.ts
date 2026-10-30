@@ -27,8 +27,8 @@ export interface CoverageState {
 const item = (id: string, label: string, question: string): CoachItem => ({ id, label, question: `Does the dictation so far ${question}` })
 
 const RISK_ITEMS = [
-  item('risk-level', 'Risk level', 'state the clinician’s assessed level of risk (e.g. low, moderate, high) for the risk it mentions?'),
-  item('risk-plan', 'Safety plan or actions', 'say what was done about the risk it mentions, such as safety planning, means restriction, consultation, notification or referral?')
+  item('risk-level', 'Risk level', 'state the clinician’s assessed level of risk (e.g. low, moderate, high) for the risk it mentions, or make clear that risk is only historical, denied or not current?'),
+  item('risk-plan', 'Safety plan or actions', 'say what was done about the risk it mentions, such as safety planning, means restriction, consultation, notification or referral, or make clear that risk is only historical, denied or not current?')
 ]
 
 /** `dictation` is what has been said so far, including live text not yet in the note. */

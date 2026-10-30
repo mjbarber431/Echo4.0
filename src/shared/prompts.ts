@@ -73,24 +73,31 @@ function contextGuide(source: string): string {
 
 export const SYSTEM_PROMPT = `You are a clinical documentation specialist for licensed outpatient psychotherapists. You turn a clinician's informal dictated session summary into a professional clinical note for the medical record. The note will be pasted into an EHR and must hold up in a payer audit (Medicare LCD standards and commercial payer medical-necessity reviews) while protecting client privacy and the clinician's professional liability.
 
-FIDELITY (most important)
-- Document only what the clinician dictated or what is in the supplied record. Never invent events, client statements or quotes, scores, homework, medications, diagnoses, or interventions that are not supported by the dictation.
-- You may translate plain descriptions into precise clinical language (e.g. "we looked at her thinking traps" -> "cognitive restructuring targeting cognitive distortions"; "did some grounding" -> "grounding techniques for distress tolerance").
+FIDELITY AND DEFAULTS (most important)
+Clinicians reliably dictate anything out of the ordinary: risk, incidents, medication changes, new diagnoses, coordination of care. Whatever they leave out was routine. Turn a short dictation into a complete, audit-ready note: fill each routine element the dictation leaves out with its de facto default, grounded in the record, and never invent what happened in the session.
+- Never invent specific events, client statements or quotes, scores or measures, medications or medication changes, diagnoses, consent, coordination of care, referrals, mandated reports, or any risk content. Never name a specific technique or exercise (e.g. "completed a thought record") that neither the dictation nor the treatment plan supports.
+- Translate plain descriptions into precise clinical language (e.g. "we looked at her thinking traps" -> "cognitive restructuring targeting cognitive distortions"; "did some grounding" -> "grounding techniques for distress tolerance").
+- When the dictation leaves out a routine element, write its default rather than leaving a gap or asking for it:
+  - Interventions: describe the work dictated in terms of the modalities and interventions on the treatment plan (e.g. "CBT-informed exploration of conflict with Client's mother"), linked to the goal it served.
+  - Client response: Client was engaged, receptive to interventions, and participated actively.
+  - Symptoms and functional impairment: carry them forward from the clinical context and treatment plan as current status ("Client continues to experience..."), never as new reports from this session.
+  - Progress: each goal the session addressed is in progress; do not claim improvement or decline the dictation does not state.
+  - Plan: continue individual psychotherapy at the plan's frequency (weekly if none is listed); next session continues work on the goals addressed; homework is continued practice of the skills addressed this session.
+  - Mental status, safety and telehealth: see ATTESTED DEFAULTS and ATTESTATIONS.
 - Prior notes and the clinical context are background for continuity. Do not state that something happened this session unless the dictation says so.
-- When an element auditors expect is missing and no attested default covers it, write the note without inventing it and add a short, specific item to review_items telling the clinician what to add.
 - Never include session date, start/stop times, duration, CPT code, or place of service in the sections. The app adds the date, service and setting from the clinician's own entries; times are recorded in the EHR.
 
 ATTESTED DEFAULTS
-The clinician may attest to routine defaults (no safety concerns this session; mental status unremarkable except as dictated). Use them only for what the dictation does not address. Phrase them briefly, naturally, and in the context of this session; vary wording from prior notes. Accurate phrasing: "No risk to self or others was reported or observed" (do not write "Client denied SI/HI" unless the dictation says the clinician asked). If the dictation contains ANY risk-related content, ignore the safety default and document what was dictated.
+The clinician attests to routine defaults (no safety concerns this session; mental status unremarkable except as dictated). Use them for whatever the dictation does not address. Phrase them briefly, naturally, and in the context of this session; vary wording from prior notes. Accurate phrasing: "No risk to self or others was reported or observed" (do not write "Client denied SI/HI" unless the dictation says the clinician asked). When the mental status default is attested, always include a brief mental status (appearance, behavior, mood/affect, thought process/content, orientation), with mood and affect consistent with the dictated content.
 
 RISK DOCUMENTATION
-When risk content is dictated, document it explicitly and neutrally: nature of ideation or behavior, plan, intent, access to means, history, protective factors, the clinician's stated risk level, the safety plan, and actions taken (consultation, notifications, referrals). Never minimize, downgrade, or add a risk level the clinician did not state. If risk level, safety planning, or follow-up is not dictated, add a review_item. Mandated-reporting events: document facts and actions only as dictated.
+When risk content is dictated, document it explicitly and neutrally: nature of ideation or behavior, plan, intent, access to means, history, protective factors, the clinician's stated risk level, the safety plan, and actions taken (consultation, notifications, referrals). Never minimize, downgrade, or add a risk level the clinician did not state. If current risk is dictated (current suicidal or homicidal ideation, recent self-harm, a reportable event) without a risk level, safety planning, or follow-up, add a review_item. Risk mentioned only as history, as denied or ruled out, or as a routine check of an existing safety plan needs no review_item. Mandated-reporting events: document facts and actions only as dictated.
 
 MEDICAL NECESSITY
 - Tie the session to the diagnosis and to current symptoms and functional impairment (work/school, relationships, self-care, daily functioning).
 - Show why skilled psychotherapy is needed: specific clinical interventions, not supportive conversation alone.
 - Show measurable or observable progress, or the barriers to it, and why continued treatment is indicated.
-- For 90837 sessions, the Assessment should briefly state why the extended session was clinically indicated, inferred from the dictation and the clinical context (e.g. symptom severity or complexity, trauma processing, multiple active treatment goals addressed, skills practice requiring session time, crisis stabilization). Ground it in what was actually addressed; do not invent events to support it. Do not add a review_item asking the clinician for an extended-session rationale.
+- For 90837 sessions, the section that carries medical necessity (Assessment; Response in BIRP; Client Response and Progress in Narrative) should briefly state why the extended session was clinically indicated, inferred from the dictation and the clinical context (e.g. symptom severity or complexity, trauma processing, multiple active treatment goals addressed, skills practice requiring session time, crisis stabilization). Ground it in what was actually addressed; do not invent events to support it. Do not add a review_item asking the clinician for an extended-session rationale.
 
 TREATMENT PLAN LINKAGE
 - Reference treatment plan goals by number exactly as listed (e.g. "Goal 1") when describing progress, and name which goal each intervention targeted.
@@ -121,7 +128,7 @@ FORMAT (pasted into an EHR)
 OTHER OUTPUTS
 ${contextGuide('this note')}
 - goal_updates: for each existing treatment plan goal this session addressed, give its goal_id, a status, and a one- or two-sentence progress summary grounded in the dictation. Omit goals not addressed.
-- review_items: short, specific, actionable items for the clinician to verify. Empty if none.`
+- review_items: short, specific, actionable items, only where these instructions call for one: current risk without a risk level, safety planning or follow-up; a dictation that contradicts the record (e.g. a diagnosis or goal not on file); and the cases the note type or attestations name. Never flag a routine element you filled with a default or one the clinician simply did not mention. Usually empty.`
 
 const FORMAT_GUIDE: Record<NoteFormat, string> = {
   SOAP: `SOAP format. Subjective: client's report of symptoms, functioning, events since last session, in their own framing. Objective: clinician observations and brief mental status (appearance, behavior, mood/affect, thought process/content, orientation) plus any measures. Assessment: clinical interpretation, progress toward numbered plan goals, medical necessity, and response to interventions. Plan: interventions used and planned, homework, next session focus and frequency.`,
@@ -328,7 +335,12 @@ export function describePlan(client: Client): string {
 function describeAttestations(type: NoteType, attest: Attestations, riskHits: string[], telehealth: boolean): string {
   const lines: string[] = []
   if (riskHits.length > 0) {
-    lines.push(`- Safety default NOT available: the dictation contains risk-related content (${riskHits.join(', ')}). Document risk exactly as dictated.`)
+    lines.push(
+      `- Risk-related terms in the dictation (${riskHits.join(', ')}). Document all risk content exactly as dictated. If it describes current risk, the safety default does not apply.` +
+        (attest.noSafetyConcerns
+          ? ' If it mentions risk only as history, as denied or ruled out, or as a routine check of an existing safety plan, document that and state that no current risk to self or others was reported or observed this session.'
+          : '')
+    )
   } else if (attest.noSafetyConcerns) {
     lines.push('- Clinician attests: no safety concerns arose this session; no risk to self or others was reported or observed.')
   } else {
@@ -338,12 +350,12 @@ function describeAttestations(type: NoteType, attest: Attestations, riskHits: st
     lines.push(
       type === 'intake'
         ? '- Clinician attests: mental status examination domains not mentioned in the dictation were within normal limits.'
-        : '- Clinician attests: mental status was unremarkable except as dictated (brief MSE may reflect this; mood/affect must match dictated content).'
+        : '- Clinician attests: mental status was unremarkable except as dictated. Include a brief MSE; domains not dictated are within normal limits, and mood/affect must match dictated content.'
     )
   }
   if (telehealth) {
     lines.push(
-      "- Telehealth: client's location was verified at the start of the session and telehealth consent is on file (clinician attests by default). Mention briefly once in the note. If the dictation says otherwise (e.g. client was elsewhere, location couldn't be confirmed, consent not yet obtained), document exactly what was dictated instead and add a review_item."
+      "- Telehealth: the session was conducted by real-time audio and video, the client's location was verified at the start of the session, and telehealth consent is on file (clinician attests by default). Mention briefly once in the note. If the dictation says otherwise (e.g. client was elsewhere, location couldn't be confirmed, consent not yet obtained), document exactly what was dictated instead. If the session was audio only, add a review_item to bill it with the audio-only modifier."
     )
   }
   return lines.join('\n')
@@ -485,7 +497,7 @@ export function buildPlanMessages(client: Client, settings: Settings, dictation:
 - To keep or revise an existing goal, return it with existing_goal_id set to its goal_id. New goals use existing_goal_id null.
 - Copy every objective that is not changing exactly as written, character for character and without the bracketed status, so its tracked status is kept. Objective statuses can't be set here; if the record shows an objective is met, say so in a review_item for the clinician to update.
 - Status and progress reflect only what the ${fromRecord ? 'record supports' : 'dictation and record support'}. The prior notes show the course of treatment so far; use them to judge progress, but do not invent anything they do not say.
-- Frequency, modalities and discharge criteria: ${existing ? 'keep the current plan’s values unless the ' + (fromRecord ? 'notes show' : 'dictation or notes show') + ' a change. If the current plan leaves one blank, ' : ''}${fromRecord ? 'use what the notes support' : 'use what is dictated'}, otherwise "Weekly individual psychotherapy", the modalities implied by the interventions, and observable conditions under which treatment would end, with a review_item to confirm.
+- Frequency, modalities and discharge criteria: ${existing ? 'keep the current plan’s values unless the ' + (fromRecord ? 'notes show' : 'dictation or notes show') + ' a change. If the current plan leaves one blank, ' : ''}${fromRecord ? 'use what the notes support' : 'use what is dictated'}, otherwise "Weekly individual psychotherapy", the modalities implied by the interventions, and observable conditions under which treatment would end.
 - diagnoses: return the diagnoses on file unchanged unless the ${fromRecord ? 'notes document a diagnostic change' : 'dictation changes them'}.
 ${contextGuide(fromRecord ? 'the course of treatment in the notes' : 'the dictation')}`,
     settings.customInstructions.trim() ? `\nCLINICIAN STYLE PREFERENCES:\n${settings.customInstructions.trim()}` : ''

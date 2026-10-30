@@ -219,8 +219,11 @@ describe('prompt assembly', () => {
     const quiet = buildNoteMessages({ note: makeNote(), client, settings, priorNotes: [] })[1].content
     expect(quiet).toContain('Clinician attests: no safety concerns')
     const risky = buildNoteMessages({ note: makeNote({ dictation: 'Client disclosed passive SI this week.' }), client, settings, priorNotes: [] })[1].content
-    expect(risky).toContain('Safety default NOT available')
+    expect(risky).toContain('the safety default does not apply')
+    expect(risky).toContain('only as history')
     expect(risky).not.toContain('Clinician attests: no safety concerns')
+    const unattested = buildNoteMessages({ note: makeNote({ dictation: 'Client disclosed passive SI this week.', attest: { noSafetyConcerns: false, mseUnremarkable: true } }), client, settings, priorNotes: [] })[1].content
+    expect(unattested).not.toContain('only as history')
   })
 })
 
@@ -424,7 +427,7 @@ describe('follow-up amendments', () => {
 
   it('drops the safety default when the follow-up raises risk', () => {
     const user = buildAmendMessages({ note: draft, client: makeClient(), settings, priorNotes: [], followUp: 'Client disclosed passive SI, safety plan updated.', flagged: [] })[1].content
-    expect(user).toContain('Safety default NOT available')
+    expect(user).toContain('the safety default does not apply')
     expect(user).not.toContain('Clinician attests: no safety concerns')
   })
 

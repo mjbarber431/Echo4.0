@@ -477,7 +477,7 @@ function Attestations({ note, riskHits, onChange }: { note: Note; riskHits: stri
         <div className="risk-banner">
           <AlertTriangle size={15} />
           <div>
-            <b>Risk-related words detected</b> ({riskHits.join(', ')}). The safety default is off for this note, so risk is documented only as you dictated it.
+            <b>Risk-related words detected</b> ({riskHits.join(', ')}). Risk is documented as you dictated it. If it’s only history, denied, or a routine safety plan check, the note still states there was no current risk.
             If it’s a false alarm (e.g. “cutting back on caffeine”), just check the risk section after generating.
           </div>
         </div>
