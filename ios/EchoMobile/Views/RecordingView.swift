@@ -29,6 +29,11 @@ struct RecordingView: View {
                     .frame(height: 64)
                     .padding(.horizontal, 28)
                     .padding(.top, 22)
+                if let mic = recorder.microphone {
+                    MicrophoneLabel(mic: mic)
+                        .padding(.top, 14)
+                        .padding(.horizontal)
+                }
                 if let interruption = recorder.interruption {
                     Label(interruption, systemImage: "pause.circle")
                         .font(.footnote)
@@ -135,6 +140,31 @@ struct RecordingView: View {
             Color.clear.frame(width: 64, height: 64).frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 12)
+    }
+}
+
+/// Which mic is hearing you, shown only while a headset is connected. The iPhone's own mic with AirPods
+/// in is called out: walking away from the phone, it hears too little to transcribe.
+private struct MicrophoneLabel: View {
+    let mic: Recorder.Microphone
+
+    var body: some View {
+        if mic.usingHeadset {
+            Label(mic.headset, systemImage: "headphones")
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.75))
+                .accessibilityLabel("Recording from \(mic.headset)")
+        } else {
+            VStack(spacing: 2) {
+                Label("iPhone mic, not \(mic.headset)", systemImage: "iphone")
+                    .font(.footnote.weight(.semibold))
+                Text("Pause, then Resume, to switch.")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+            .foregroundStyle(.yellow)
+            .multilineTextAlignment(.center)
+        }
     }
 }
 

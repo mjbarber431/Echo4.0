@@ -1,5 +1,6 @@
 import AVFoundation
 import Observation
+import os
 
 /// Records one dictation to a file. Keeps going with the screen locked (background
 /// audio), pauses itself for a phone call or Siri and carries on afterwards, and
@@ -26,10 +27,21 @@ final class Recorder {
     /// Set when the system paused or stopped the recording (a call, Siri, an alarm), so the clinician knows.
     private(set) var interruption: String?
     private(set) var startedAt: Date?
+    /// The mic in use, while a Bluetooth headset is connected, so the iPhone's own mic being used with
+    /// AirPods in doesn't go unnoticed. Nil with no headset: the iPhone's mic is the only choice then.
+    private(set) var microphone: Microphone?
     /// Called whenever `state` changes, whoever changed it, e.g. to update the Live Activity.
     var onChange: (() -> Void)?
 
     static let levelCount = 48
+    private static let log = Logger(subsystem: "care.person2person.echo.mobile", category: "recorder")
+
+    struct Microphone: Equatable {
+        /// The headset's name, e.g. "Jo’s AirPods Pro".
+        let headset: String
+        /// False when the iPhone's own mic is in use although the headset is connected.
+        let usingHeadset: Bool
+    }
 
     private var recorder: AVAudioRecorder?
     private let delegate = RecorderDelegate()
@@ -67,6 +79,7 @@ final class Recorder {
         } catch {
             throw RecorderError.failed("set up the microphone", error)
         }
+        Self.preferHeadset(session)
         let recorder: AVAudioRecorder
         do {
             recorder = try Self.makeRecorder(url, compressed: true)
@@ -94,26 +107,57 @@ final class Recorder {
         startedAt = Date()
         levels = Array(repeating: 0, count: Self.levelCount)
         state = .recording
+        updateMicrophone()
         observe()
         tick()
     }
 
-    /// Recording only. AirPods or a Bluetooth headset are used as the mic when connected (so a phone
-    /// in a pocket isn't what's heard), at full quality where they support it.
+    /// AirPods or a Bluetooth headset are used as the mic when connected (so a phone in a pocket isn't
+    /// what's heard), at full quality where they support it.
+    /// Play-and-record, though nothing plays: AirPods' automatic switching only hands them to a session that
+    /// could play through them. With .record, an iPhone that doesn't already own them (they were last used
+    /// with the Mac, say) refuses their mic and stays on its own.
     /// The default mode: .spokenAudio is a playback mode, and a real iPhone rejects it for recording (-50).
     private static func configure(_ session: AVAudioSession) throws {
         if #available(iOS 26.0, *) {
             do {
-                try session.setCategory(.record, mode: .default, options: [.allowBluetoothHFP, .bluetoothHighQualityRecording])
+                try session.setCategory(.playAndRecord, mode: .default, options: [.allowBluetoothHFP, .bluetoothHighQualityRecording])
                 try? session.setPrefersNoInterruptionsFromSystemAlerts(true)
                 return
             } catch {
                 // Falls through to plain Bluetooth input.
             }
         }
-        try session.setCategory(.record, mode: .default, options: [.allowBluetoothHFP])
+        try session.setCategory(.playAndRecord, mode: .default, options: [.allowBluetoothHFP])
         // A ringtone alone doesn't stop the recording; answering the call does.
         try? session.setPrefersNoInterruptionsFromSystemAlerts(true)
+    }
+
+    /// Allowing Bluetooth isn't enough: a recording-only session stays on the iPhone's own mic, even with
+    /// AirPods in, unless the headset is asked for by name. Without one, back to the iPhone's mic.
+    private static func preferHeadset(_ session: AVAudioSession) {
+        do {
+            try session.setPreferredInput(session.availableInputs?.first(where: isHeadset))
+        } catch {
+            log.error("Couldn't prefer the headset mic: \((error as NSError).code, privacy: .public)")
+        }
+    }
+
+    private static func isHeadset(_ port: AVAudioSessionPortDescription) -> Bool {
+        port.portType == .bluetoothHFP || port.portType == .bluetoothLE
+    }
+
+    private func updateMicrophone() {
+        let session = AVAudioSession.sharedInstance()
+        // Port types only, never names (a name can be the clinician's).
+        let types = { (ports: [AVAudioSessionPortDescription]?) in (ports ?? []).map(\.portType.rawValue).joined(separator: ",") }
+        Self.log.notice("Input \(types(session.currentRoute.inputs), privacy: .public); available \(types(session.availableInputs), privacy: .public)")
+        let inUse = session.currentRoute.inputs.first(where: Self.isHeadset)
+        guard let headset = inUse ?? session.availableInputs?.first(where: Self.isHeadset) else {
+            microphone = nil
+            return
+        }
+        microphone = Microphone(headset: headset.portName, usingHeadset: inUse != nil)
     }
 
     /// 16 kHz mono, the rate the speech model uses: AAC normally, 16-bit PCM as a fallback.
@@ -144,12 +188,15 @@ final class Recorder {
     @discardableResult
     func resume() -> Bool {
         guard state == .paused, let recorder else { return false }
+        let session = AVAudioSession.sharedInstance()
         do {
-            try AVAudioSession.sharedInstance().setActive(true)
+            try session.setActive(true)
         } catch {
             interruption = "Couldn’t get the microphone back. Tap Resume to try again."
             return false
         }
+        // AirPods put in while paused are picked up here.
+        Self.preferHeadset(session)
         guard recorder.record() else {
             interruption = "Couldn’t get the microphone back. Tap Resume to try again."
             return false
@@ -158,6 +205,7 @@ final class Recorder {
         resumeAfterInterruption = false
         silentTicks = 0
         state = .recording
+        updateMicrophone()
         return true
     }
 
@@ -187,6 +235,7 @@ final class Recorder {
         observers = []
         resumeAfterInterruption = false
         startedAt = nil
+        microphone = nil
         state = .idle
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
@@ -265,6 +314,7 @@ final class Recorder {
         observers.append(center.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { note in
             let reason = (note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt).flatMap(AVAudioSession.RouteChangeReason.init)
             MainActor.assumeIsolated {
+                self.updateMicrophone()
                 // A headset or AirPods went away mid-sentence: pause rather than carry on with a different mic unnoticed.
                 guard reason == .oldDeviceUnavailable, self.state == .recording else { return }
                 self.pause()
