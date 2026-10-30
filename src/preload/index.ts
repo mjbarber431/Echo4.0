@@ -45,6 +45,7 @@ const api: EchoApi = {
   saveLetterhead: (letterhead) => ipcRenderer.invoke('letterhead:save', letterhead),
   chooseLetterheadImage: (kind) => ipcRenderer.invoke('letterhead:image', kind),
   saveLetterPdf: (letter, clientName) => ipcRenderer.invoke('letter:pdf', letter, clientName),
+  writeLetter: (letter, clientId) => ipcRenderer.invoke('ai:letter', letter, clientId),
   copy: (text, html) => ipcRenderer.invoke('clipboard:write', text, html),
   canUseTouchId: () => ipcRenderer.invoke('lock:available'),
   unlock: () => ipcRenderer.invoke('lock:unlock'),

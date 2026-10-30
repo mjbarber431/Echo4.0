@@ -8,7 +8,7 @@ import { WRITING_MODELS, type AppState, type Client, type MobileLinkStatus, type
 import { coachItems, mockCoverage } from '../shared/coach'
 import { noteSortKey } from '../shared/compliance'
 import { planToDocumentHtml } from '../shared/format'
-import { DEFAULT_LETTERHEAD, letterFooterTemplate, letterToDocumentHtml, type Letter, type Letterhead } from '../shared/letter'
+import { DEFAULT_LETTERHEAD, letterFooterTemplate, letterToDocumentHtml, signerLabel, type Letter, type Letterhead } from '../shared/letter'
 import { mergeLegacy, summarizeLegacy, type LegacyClient } from '../shared/legacy'
 import { readLegacyBackup } from './legacyBackup'
 import { Vault } from './vault'
@@ -370,6 +370,18 @@ function registerIpc(): void {
     if (!dictation.trim() && notes.length === 0) throw new Error('There are no finalized notes to update the plan from yet. Dictate what’s changed instead.')
     if (MOCK) return ai.mockGeneratePlan(client)
     return ai.generatePlan(requireKey(), vault.data.settings, client, dictation, notes)
+  })
+
+  ipcMain.handle('ai:letter', async (_e, letter: Letter, clientId: string) => {
+    const client = vault.data.clients.find((c) => c.id === clientId)
+    if (!client) throw new Error('Client not found.')
+    if (!letter.body.trim()) throw new Error('Jot down what the letter should say first.')
+    const signers = (vault.data.letterhead ?? DEFAULT_LETTERHEAD).signers
+      .filter((s) => letter.signerIds.includes(s.id))
+      .map((s) => [signerLabel(s), s.title.trim()].filter(Boolean).join(', '))
+    const input = { draft: letter.body, recipient: letter.recipient, subject: letter.subject, salutation: letter.salutation, closing: letter.closing, signers, clientName: client.name, pronouns: client.pronouns }
+    if (MOCK) return ai.mockWriteLetter(input)
+    return ai.writeLetter(requireKey(), vault.data.settings, input)
   })
 
   ipcMain.handle('ai:context', async (_e, clientId: string) => {

@@ -3595,3 +3595,35 @@ input[type='checkbox'] {
   background: var(--accent);
   transition: width 0.3s ease;
 }
+.letter-ai {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.letter-ai .field-hint {
+  margin-left: auto;
+}
+.letter-review {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--text);
+  font-size: 12.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.letter-review li {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.letter-review svg {
+  flex: none;
+  color: var(--warn);
+  position: relative;
+  top: 2px;
+}

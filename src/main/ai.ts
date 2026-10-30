@@ -2,8 +2,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import { coachInput, coachItems, type CoachItem } from '../shared/coach'
 import { MODEL_FAILURE } from '../shared/queue'
 import { scanRisk } from '../shared/compliance'
-import type { AiContextResult, AiNoteResult, AiPlanResult, Client, Note, Settings } from '../shared/types'
-import { buildAmendMessages, buildContextMessages, buildNoteMessages, buildPlanMessages, CONTEXT_SCHEMA, NOTE_SCHEMA, PLAN_SCHEMA, sectionsFor, type ChatMessage } from '../shared/prompts'
+import type { AiContextResult, AiLetterResult, AiNoteResult, AiPlanResult, Client, Note, Settings } from '../shared/types'
+import { buildAmendMessages, buildContextMessages, buildLetterMessages, buildNoteMessages, buildPlanMessages, CONTEXT_SCHEMA, LETTER_SCHEMA, NOTE_SCHEMA, PLAN_SCHEMA, restoreLetterName, sectionsFor, type ChatMessage, type LetterPromptInput } from '../shared/prompts'
 
 // Claude calls run only in the main process so the API key never reaches the
 // renderer, and nothing here logs PHI.
@@ -114,6 +114,12 @@ export async function generatePlan(apiKey: string, settings: Settings, client: C
 
 export async function rebuildContext(apiKey: string, settings: Settings, client: Client, priorNotes: Note[]): Promise<AiContextResult> {
   return structured<AiContextResult>(apiKey, settings, buildContextMessages(client, settings, priorNotes), CONTEXT_SCHEMA)
+}
+
+export async function writeLetter(apiKey: string, settings: Settings, input: LetterPromptInput): Promise<AiLetterResult> {
+  const result = await structured<AiLetterResult>(apiKey, settings, buildLetterMessages(input), LETTER_SCHEMA)
+  const restore = (text: string) => restoreLetterName(text, input.clientName)
+  return { salutation: restore(result.salutation), body: restore(result.body), closing: restore(result.closing), review_items: result.review_items.map(restore) }
 }
 
 // ---------------------------------------------------------------------------
@@ -241,4 +247,15 @@ export async function mockGeneratePlan(client: Client): Promise<AiPlanResult> {
 export async function mockRebuildContext(client: Client): Promise<AiContextResult> {
   await delay(800)
   return { context_update: client.context || 'Demo context rebuilt by the mock provider.' }
+}
+
+export async function mockWriteLetter(input: LetterPromptInput): Promise<AiLetterResult> {
+  await delay(900)
+  const body = input.draft
+    .split(/\n\s*\n/)
+    .map((p) => p.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .map((p) => p[0].toUpperCase() + p.slice(1) + (/[.!?]$/.test(p) ? '' : '.'))
+    .join('\n\n')
+  return { salutation: input.salutation || 'To whom it may concern,', body, closing: input.closing || 'Sincerely,', review_items: ['Demo mode: this is a tidied copy of your text, not a letter written by Claude.'] }
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_LETTERHEAD, letterDate, letterToDocumentHtml, type Letter } from '../src/shared/letter'
+import { buildLetterMessages, restoreLetterName } from '../src/shared/prompts'
 
 const letter: Letter = {
   date: '2026-10-26',
@@ -40,5 +41,30 @@ describe('letter', () => {
 
   it('leaves an unparseable date as typed', () => {
     expect(letterDate('soon')).toBe('soon')
+  })
+})
+
+describe('letter prompt', () => {
+  const input = {
+    draft: 'Sam Example has come weekly. Sam’s anxiety is better. Ask Ms. Lee about Sam.',
+    recipient: 'Ms. Lee',
+    subject: 'Sam Example',
+    salutation: 'Dear Ms. Lee,',
+    closing: 'Sincerely,',
+    signers: ['Grace Bryan, LCSW, Licensed Clinical Social Worker'],
+    clientName: 'Sam Example',
+    pronouns: 'she/her'
+  }
+
+  it('never sends the client’s name', () => {
+    const text = buildLetterMessages(input).map((m) => m.content).join('\n')
+    expect(text).not.toMatch(/Sam|Example/)
+    expect(text).toContain('[Client]’s anxiety')
+    expect(text).toContain('RE line: [Client]\n')
+    expect(text).toContain('[Client] has come weekly')
+  })
+
+  it('puts the name back', () => {
+    expect(restoreLetterName('[Client] attends weekly. [First] is engaged.', 'Sam Example')).toBe('Sam Example attends weekly. Sam is engaged.')
   })
 })

@@ -25,7 +25,7 @@ Finalizing also updates the client's treatment-plan goal statuses (you can untic
 
 **Existing clients:** choose *Existing client* when adding them, dictate a minute of background and goals, and Echo drafts the treatment plan and context.
 **Plan reviews:** *Update with AI* on the plan tab. Dictate what changed ("goal 1 is met, add a goal around…"), or leave it blank and Echo works out the changes from the notes since the last plan review, listing each one with the session that supports it. Every change keeps the previous version in history. *Save PDF* exports a printable copy with a clinician signature line for the chart.
-**Letters:** *Letter on letterhead…* in a client's ⋯ menu writes a letter (for a school, an employer, another provider) on the practice letterhead, with a live preview, and saves it as a PDF. The logo and signatures come with the app (copied into release builds from the project folder, never committed); *Letterhead & signatures* replaces them or edits the practice details.
+**Letters:** *Letter on letterhead…* in a client's ⋯ menu writes a letter (for a school, an employer, another provider) on the practice letterhead, with a live preview, and saves it as a PDF. The logo and signatures come with the app (copied into release builds from the project folder, never committed); *Letterhead & signatures* replaces them or edits the practice details. *Write with AI* (⌘↵) turns rough ideas into the letter, or tidies a draft's wording and paragraphs, using your writing model. The client's name goes out as a placeholder and is put back when the letter returns; Claude is told to use only facts you gave and to flag any it needs (a start date, say) as items to check. *Undo* restores your text.
 
 ## What's built in for audits and liability
 

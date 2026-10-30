@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, FileDown, ImagePlus } from 'lucide-react'
+import { ChevronDown, ChevronRight, CircleAlert, FileDown, ImagePlus, Sparkles, Undo2 } from 'lucide-react'
 import type { Client } from '@shared/types'
 import { todayISO } from '@shared/compliance'
 import { letterToDocumentHtml, signerLabel, type Letter, type Letterhead } from '@shared/letter'
@@ -23,6 +23,10 @@ export function LetterModal({ client, onClose }: { client: Client; onClose(): vo
     signerIds: []
   })
   const loaded = useRef(false)
+  const [writing, setWriting] = useState(false)
+  /** The letter before the last AI pass, for Undo. Cleared once the text is edited by hand. */
+  const [before, setBefore] = useState<Letter | null>(null)
+  const [review, setReview] = useState<string[]>([])
 
   useEffect(() => {
     void window.echo.getLetterhead().then((lh) => {
@@ -63,6 +67,27 @@ export function LetterModal({ client, onClose }: { client: Client; onClose(): vo
     } catch (err) {
       toast(errorMessage(err), 'error')
     }
+  }
+
+  const write = async () => {
+    if (!letter.body.trim() || writing) return
+    setWriting(true)
+    try {
+      const result = await window.echo.writeLetter(letter, client.id)
+      setBefore(letter)
+      setReview(result.review_items)
+      set({ salutation: result.salutation, body: result.body, closing: result.closing })
+    } catch (err) {
+      toast(errorMessage(err), 'error')
+    } finally {
+      setWriting(false)
+    }
+  }
+
+  const undo = () => {
+    if (before) set({ salutation: before.salutation, body: before.body, closing: before.closing })
+    setBefore(null)
+    setReview([])
   }
 
   const save = async () => {
@@ -132,13 +157,47 @@ export function LetterModal({ client, onClose }: { client: Client; onClose(): vo
               <input value={letter.subject} onChange={(e) => set({ subject: e.target.value })} />
             </Field>
             <Field label="Greeting">
-              <input value={letter.salutation} onChange={(e) => set({ salutation: e.target.value })} />
+              <input value={letter.salutation} disabled={writing} onChange={(e) => set({ salutation: e.target.value })} />
             </Field>
-            <Field label="Letter" hint="Leave a blank line between paragraphs.">
-              <AutoTextarea value={letter.body} minRows={8} autoFocus onChange={(e) => set({ body: e.target.value })} />
-            </Field>
+            <div className="field">
+              <span className="field-label">Letter</span>
+              <AutoTextarea
+                value={letter.body}
+                minRows={8}
+                autoFocus
+                disabled={writing}
+                placeholder={'Write the letter, or jot down your ideas and let Echo write it.\n\ne.g. confirm weekly sessions since August, recommend extended time on tests, happy to talk with the counselor'}
+                onChange={(e) => (set({ body: e.target.value }), setBefore(null))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.metaKey) {
+                    e.preventDefault()
+                    void write()
+                  }
+                }}
+              />
+              <div className="letter-ai">
+                <Button size="sm" icon={writing ? <span className="activity-orb" aria-hidden /> : <Sparkles size={14} />} disabled={!letter.body.trim() || writing} onClick={write} title="Turns ideas into a letter, or tidies a draft (⌘↵). The client’s name isn’t sent.">
+                  {writing ? 'Writing…' : 'Write with AI'}
+                </Button>
+                {before && !writing && (
+                  <Button size="sm" variant="ghost" icon={<Undo2 size={14} />} onClick={undo}>
+                    Undo
+                  </Button>
+                )}
+                <span className="field-hint">Leave a blank line between paragraphs.</span>
+              </div>
+              {review.length > 0 && (
+                <ul className="letter-review">
+                  {review.map((r) => (
+                    <li key={r}>
+                      <CircleAlert size={13} /> {r}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             <Field label="Closing">
-              <input value={letter.closing} onChange={(e) => set({ closing: e.target.value })} />
+              <input value={letter.closing} disabled={writing} onChange={(e) => set({ closing: e.target.value })} />
             </Field>
 
             <button className="letter-setup-toggle" onClick={() => setSetup((v) => !v)}>

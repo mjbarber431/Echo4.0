@@ -271,6 +271,14 @@ export interface AiContextResult {
   context_update: string
 }
 
+/** A letter written or polished by the model, with the client's name already put back. */
+export interface AiLetterResult {
+  salutation: string
+  body: string
+  closing: string
+  review_items: string[]
+}
+
 export interface EchoApi {
   getState(): Promise<AppState>
   saveSettings(patch: Partial<Settings>): Promise<PublicSettings>
@@ -313,6 +321,8 @@ export interface EchoApi {
   chooseLetterheadImage(kind: 'logo' | 'signature'): Promise<string | null>
   /** Renders a letter on the letterhead to a PDF the clinician picks a location for. Null if cancelled. */
   saveLetterPdf(letter: Letter, clientName: string): Promise<string | null>
+  /** Writes the letter from the clinician's ideas, or polishes their draft. */
+  writeLetter(letter: Letter, clientId: string): Promise<AiLetterResult>
   copy(text: string, html: string): Promise<void>
   canUseTouchId(): Promise<boolean>
   unlock(): Promise<boolean>

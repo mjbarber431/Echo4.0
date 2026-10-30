@@ -270,7 +270,7 @@ function escapeRegExp(s: string): string {
  * leaves the app. Matches the capitalization as entered or ALL CAPS, so a client
  * named "Will" or "Hope" doesn't clobber ordinary lowercase words.
  */
-export function redactName(text: string, name: string): string {
+export function redactName(text: string, name: string, as = 'Client'): string {
   const parts = name
     .split(/\s+/)
     .map((p) => p.replace(/[^\p{L}'’-]/gu, ''))
@@ -279,7 +279,7 @@ export function redactName(text: string, name: string): string {
   for (const part of parts) {
     const forms = [...new Set([part, part[0].toUpperCase() + part.slice(1), part.toUpperCase()])].map(escapeRegExp)
     const re = new RegExp(`(?<![\\p{L}])(?:${forms.join('|')})(['’]s)?(?![\\p{L}])`, 'gu')
-    out = out.replace(re, (_m, possessive?: string) => (possessive ? 'Client’s' : 'Client'))
+    out = out.replace(re, (_m, possessive?: string) => (possessive ? `${as}’s` : as))
   }
   return out
 }
@@ -551,4 +551,82 @@ ${contextGuide('the full record: the current clinical context, the intake, and e
     { role: 'system', content: system },
     { role: 'user', content: user }
   ]
+}
+
+// ---------------------------------------------------------------------------
+// Letters on letterhead. The clinician's ideas or rough draft become a finished
+// letter. The client's name goes out as a placeholder and is put back on return.
+// ---------------------------------------------------------------------------
+
+export const LETTER_CLIENT = '[Client]'
+export const LETTER_FIRST = '[First]'
+
+export const LETTER_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['salutation', 'body', 'closing', 'review_items'],
+  properties: {
+    salutation: { type: 'string' },
+    body: { type: 'string', description: 'Paragraphs separated by one blank line. No greeting, closing or signature.' },
+    closing: { type: 'string' },
+    review_items: { type: 'array', items: { type: 'string' } }
+  }
+}
+
+export interface LetterPromptInput {
+  draft: string
+  recipient: string
+  subject: string
+  salutation: string
+  closing: string
+  /** "Name, credentials, title" for each person signing. */
+  signers: string[]
+  clientName: string
+  pronouns: string
+}
+
+const LETTER_SYSTEM = `You write professional letters for a licensed psychotherapist at a small outpatient therapy practice: letters to schools, employers, other providers, attorneys, or the client. The letter is printed on the practice letterhead, which already carries the practice name, contact details, date, recipient address, RE line and the signature blocks. You write only the greeting, the body and the closing phrase.
+
+The clinician gives you either rough ideas (fragments, bullet points, dictation) or a draft letter.
+- Ideas: write the complete letter they describe.
+- A draft: improve it. Fix spelling, grammar, paragraphing and spacing, tighten wording and make the tone professional, while keeping the clinician's meaning, facts and voice. Don't pad a letter that already works.
+
+FIDELITY
+- Use only facts the clinician gives. Never invent dates, diagnoses, session counts, frequencies, symptoms, test results, recommendations or quotes.
+- If the letter needs a fact the clinician didn't give (a start date, a frequency), write a bracketed placeholder such as [start date] and add a review item asking for it.
+- Share the minimum necessary. Don't add clinical detail, diagnoses or history beyond what the clinician wrote, and add a review item if what they wrote seems to disclose more than the recipient needs, or would normally require the client's written authorization to release.
+- Write ${LETTER_CLIENT} for the client's full name and ${LETTER_FIRST} for their first name, exactly so. Use the full name the first time and in formal statements, the first name or pronouns elsewhere as fits the letter. Refer to other people by role.
+
+STYLE
+- Clear, warm, plain professional English. Short paragraphs, usually two to five. No headings, bullet points or markdown unless the clinician's draft uses a list that should stay one.
+- Write in the first person as the signer ("I"), or "we" when more than one person signs.
+- Greeting: keep the clinician's unless it doesn't fit the recipient. Closing: a single phrase such as "Sincerely," ending in a comma.
+- body: paragraphs separated by one blank line. Never include the date, address, RE line, greeting, closing, signature, names under the signature, or contact details in body.
+- review_items: short, specific things the clinician should check or fill in. Empty if none.`
+
+export function buildLetterMessages(input: LetterPromptInput): ChatMessage[] {
+  // A full name becomes one placeholder, not one per part.
+  const hide = (text: string) => redactName(text, input.clientName, LETTER_CLIENT).replace(/\[Client\](?:\s+\[Client\])+/g, LETTER_CLIENT)
+  const user = [
+    `Recipient: ${hide(input.recipient.trim()) || 'not given'}`,
+    `RE line: ${hide(input.subject.trim()) || 'none'}`,
+    `Client pronouns: ${input.pronouns.trim() || 'not specified'}`,
+    `Signed by: ${input.signers.length ? input.signers.join('; ') : 'not chosen'}`,
+    `Current greeting: ${hide(input.salutation.trim()) || 'none'}`,
+    `Current closing: ${input.closing.trim() || 'none'}`,
+    '',
+    "CLINICIAN'S IDEAS OR DRAFT",
+    hide(input.draft.trim())
+  ].join('\n')
+  return [
+    { role: 'system', content: LETTER_SYSTEM },
+    { role: 'user', content: user }
+  ]
+}
+
+/** Puts the client's name back where the model wrote the placeholders. */
+export function restoreLetterName(text: string, clientName: string): string {
+  const full = clientName.trim()
+  const first = full.split(/\s+/)[0] ?? full
+  return text.split(LETTER_FIRST).join(first).split(LETTER_CLIENT).join(full)
 }
