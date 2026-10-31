@@ -7,13 +7,14 @@ import { isModelFailure, type NoteJob } from '@shared/queue'
 import { memoToNote, type ClientMatch } from '@shared/mobile'
 import { api, errorMessage, nowISO, uid } from './lib/util'
 
-export type ClientTab = 'notes' | 'plan' | 'context' | 'scratchpad'
+export type ClientTab = 'notes' | 'plan' | 'context' | 'scratchpad' | 'ask'
 
 export type Route =
   | { view: 'queue' }
   | { view: 'client'; id: string; tab?: ClientTab }
   | { view: 'note'; id: string }
   | { view: 'settings' }
+  | { view: 'library' }
 
 interface Toast {
   id: number
@@ -81,6 +82,9 @@ interface Store {
   toast(message: string, tone?: Toast['tone'], action?: Toast['action']): void
   dismissToast(id: number): void
   toasts: Toast[]
+  /** The Library resource open in the viewer, if any. */
+  viewing: string | null
+  viewResource(id: string | null): void
   /** The client list is hidden while writing a note unless the clinician brings it back. */
   noteSidebar: boolean
   setNoteSidebar(open: boolean): void
@@ -117,6 +121,7 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
   const [unseen, setUnseen] = useState<Record<string, true>>({})
   const [toasts, setToasts] = useState<Toast[]>([])
   const [noteSidebar, setNoteSidebar] = useState(false)
+  const [viewing, setViewing] = useState<string | null>(null)
   const [rewrites, setRewrites] = useState<Record<string, Rewrites>>({})
   const handlers = useRef(new Map<string, Set<() => void>>())
   /** Context rebuilds in flight, by client ID, so two notes for one client share one. */
@@ -371,6 +376,8 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
       toasts,
       noteSidebar,
       setNoteSidebar,
+      viewing,
+      viewResource: setViewing,
       on,
       emit,
       toast,
@@ -488,7 +495,7 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
         void api().deleteNote(id)
       }
     }
-  }, [settings, clients, notes, inbox, route, jobs, amends, rewrites, unseen, toasts, noteSidebar, on, emit, toast, dismissToast, markSeen, setNotes, setClients, setRoute, setJob])
+  }, [settings, clients, notes, inbox, route, jobs, amends, rewrites, unseen, toasts, noteSidebar, viewing, on, emit, toast, dismissToast, markSeen, setNotes, setClients, setRoute, setJob])
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>
 }

@@ -1,12 +1,14 @@
-import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeImage, nativeTheme, powerMonitor, session, shell, systemPreferences } from 'electron'
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeImage, nativeTheme, powerMonitor, protocol, session, shell, systemPreferences } from 'electron'
 import { randomUUID } from 'node:crypto'
-import { readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { extname, join, resolve, sep } from 'node:path'
 import QRCode from 'qrcode'
 import { autoUpdater } from 'electron-updater'
 import { WRITING_MODELS, type AppState, type Client, type MobileLinkStatus, type Note, type PublicSettings, type Settings, type UpdateStatus } from '../shared/types'
 import { coachItems, mockCoverage } from '../shared/coach'
-import { noteSortKey } from '../shared/compliance'
+import { buildChatSystem, CHAT_MODELS, chatTitle, DEFAULT_CHAT_MODEL, startCost, summarize, userContent, type ChatEvent, type ChatThread } from '../shared/chat'
+import { noteSortKey, todayISO } from '../shared/compliance'
+import { resourceById, type ResourcePart } from '../shared/resources'
 import { planToDocumentHtml } from '../shared/format'
 import { DEFAULT_LETTERHEAD, letterFooterTemplate, letterToDocumentHtml, signerLabel, type Letter, type Letterhead } from '../shared/letter'
 import { mergeLegacy, summarizeLegacy, type LegacyClient } from '../shared/legacy'
@@ -149,7 +151,9 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      spellcheck: true
+      spellcheck: true,
+      // Chromium's PDF viewer, for the Library.
+      plugins: true
     }
   })
   win.once('ready-to-show', () => win?.show())
@@ -226,6 +230,8 @@ function buildMenu(): void {
       submenu: [
         { label: 'Queue', accelerator: 'Cmd+0', click: () => send('queue') },
         { label: 'Scratchpad', accelerator: 'Cmd+Shift+P', click: () => send('scratchpad') },
+        { label: 'Ask Claude', accelerator: 'Cmd+Shift+A', click: () => send('ask') },
+        { label: 'Library', accelerator: 'Cmd+Shift+L', click: () => send('library') },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
@@ -293,6 +299,7 @@ function registerIpc(): void {
   ipcMain.handle('client:delete', (_e, id: string) => {
     vault.data.clients = vault.data.clients.filter((c) => c.id !== id)
     vault.data.notes = vault.data.notes.filter((n) => n.clientId !== id)
+    vault.data.chats = vault.data.chats.filter((t) => t.clientId !== id)
     vault.save()
   })
 
@@ -583,6 +590,214 @@ function registerLegacyImport(): void {
   })
 }
 
+/** Replies being written, by chat ID, so Stop can end one. */
+const chatsInFlight = new Map<string, AbortController>()
+
+function registerChat(): void {
+  const findChat = (id: string): ChatThread => {
+    const thread = vault.data.chats.find((t) => t.id === id)
+    if (!thread) throw new Error('That chat was deleted.')
+    return thread
+  }
+  const chatModel = (model: string): string => (CHAT_MODELS.some((m) => m.id === model) ? model : DEFAULT_CHAT_MODEL)
+
+  ipcMain.handle('chat:list', (_e, clientId: string) =>
+    vault.data.chats
+      .filter((t) => t.clientId === clientId)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .map(summarize)
+  )
+
+  ipcMain.handle('chat:get', (_e, id: string) => vault.data.chats.find((t) => t.id === id) ?? null)
+
+  ipcMain.handle('chat:preview', (_e, clientId: string, model: string) => {
+    const client = vault.data.clients.find((c) => c.id === clientId)
+    if (!client) throw new Error('Client not found.')
+    const notes = finalizedNotes(clientId)
+    return { notes: notes.length, cost: startCost(buildChatSystem(client, notes, todayISO()), chatModel(model)) }
+  })
+
+  ipcMain.handle('chat:send', (_e, clientId: string, threadId: string | null, text: string, model: string, retry = false) => {
+    const client = vault.data.clients.find((c) => c.id === clientId)
+    if (!client) throw new Error('Client not found.')
+    if (!MOCK) requireKey()
+    const now = new Date().toISOString()
+    let thread: ChatThread
+    if (threadId) {
+      thread = findChat(threadId)
+      if (chatsInFlight.has(thread.id)) throw new Error('Claude is still answering. Wait for the reply or press Stop.')
+      thread.model = chatModel(model)
+    } else {
+      const notes = finalizedNotes(clientId)
+      thread = {
+        id: randomUUID(),
+        clientId,
+        title: chatTitle(text),
+        model: chatModel(model),
+        system: buildChatSystem(client, notes, todayISO()),
+        noteIds: notes.map((n) => n.id),
+        seen: { notes: notes.length, plan: (client.plan?.goals.length ?? 0) > 0, context: !!client.context.trim(), diagnoses: client.diagnoses.length, asOf: now },
+        turns: [],
+        createdAt: now,
+        updatedAt: now
+      }
+      vault.data.chats.push(thread)
+    }
+    if (retry) {
+      // Only the newest reply is redone, so everything before it stays exactly as Claude saw it.
+      if (thread.turns[thread.turns.length - 1]?.role === 'assistant') thread.turns.pop()
+      if (thread.turns[thread.turns.length - 1]?.role !== 'user') throw new Error('There’s no question to answer again.')
+    } else {
+      if (!text.trim()) throw new Error('Type a question first.')
+      // Notes finalized since the chat started go out with this message, oldest first.
+      const seen = new Set(thread.noteIds)
+      const added = finalizedNotes(clientId).filter((n) => !seen.has(n.id)).reverse()
+      thread.noteIds.push(...added.map((n) => n.id))
+      thread.turns.push({ id: randomUUID(), role: 'user', text: text.trim(), content: userContent(text, client, added), addedNotes: added.length || undefined, at: now })
+    }
+    thread.updatedAt = now
+    vault.save()
+
+    const controller = new AbortController()
+    chatsInFlight.set(thread.id, controller)
+    const emit = (event: ChatEvent) => win?.webContents.send('chat', event)
+    const onDelta = (type: 'thinking' | 'text', delta: string) => emit({ threadId: thread.id, type, text: delta })
+    const replyModel = thread.model
+    const reply = MOCK ? ai.mockChat(onDelta, controller.signal) : ai.chat(requireKey(), replyModel, thread.system, thread.turns, onDelta, controller.signal)
+    reply
+      .then((r) => {
+        const current = vault.data.chats.find((t) => t.id === thread.id)
+        if (!current) return
+        current.turns.push({ id: randomUUID(), role: 'assistant', text: r.text, content: r.content, thinking: r.thinking || undefined, model: replyModel, usage: r.usage, stopped: r.stopped || undefined, at: new Date().toISOString() })
+        current.updatedAt = new Date().toISOString()
+        vault.save()
+        emit({ threadId: thread.id, type: 'done', thread: current })
+      })
+      .catch((err: Error) => {
+        // The question stays in the chat so Try again can answer it; nothing after it was sent.
+        emit({ threadId: thread.id, type: 'error', message: err.message, thread: vault.data.chats.find((t) => t.id === thread.id) ?? null })
+      })
+      .finally(() => chatsInFlight.delete(thread.id))
+    return thread
+  })
+
+  ipcMain.on('chat:stop', (_e, id: string) => chatsInFlight.get(id)?.abort())
+
+  ipcMain.handle('chat:model', (_e, id: string, model: string) => {
+    const thread = findChat(id)
+    thread.model = chatModel(model)
+    vault.save()
+    return thread
+  })
+
+  ipcMain.handle('chat:delete', (_e, id: string) => {
+    chatsInFlight.get(id)?.abort()
+    vault.data.chats = vault.data.chats.filter((t) => t.id !== id)
+    vault.flush()
+  })
+
+  ipcMain.handle('chat:delete-all', (_e, clientId?: string) => {
+    const doomed = vault.data.chats.filter((t) => !clientId || t.clientId === clientId)
+    doomed.forEach((t) => chatsInFlight.get(t.id)?.abort())
+    vault.data.chats = vault.data.chats.filter((t) => !doomed.includes(t))
+    vault.flush()
+    return doomed.length
+  })
+}
+
+/** The resource library folder: the one chosen in Settings, or the project's copy while developing. */
+function resourceRoot(): string {
+  return vault.data.settings.resourcesFolder || (app.isPackaged ? '' : join(app.getAppPath(), 'ClinicalResources'))
+}
+
+/** Sites library links may open. */
+const RESOURCE_SITES = ['https://contextualscience.org/', 'https://suicidesafetyplan.com/', 'https://cssrs.columbia.edu/', 'https://988lifeline.org/']
+
+function registerResources(): void {
+  const status = () => {
+    const path = resourceRoot()
+    return { path, found: !!path && existsSync(path) }
+  }
+
+  /** A file in the library folder, refusing anything outside it. */
+  const libraryFile = (rel: string): string => {
+    const root = resourceRoot()
+    if (!root) throw new Error('Choose your ClinicalResources folder in the Library first.')
+    const file = resolve(root, rel)
+    if (!file.startsWith(resolve(root) + sep)) throw new Error('That resource is outside the library folder.')
+    if (!existsSync(file)) throw new Error(`Couldn’t find ${rel} in ${root}. Was it moved? Rebuild the catalogue with scripts/catalog-resources.mjs.`)
+    return file
+  }
+
+  const partOf = (id: string, index: number): ResourcePart => {
+    const part = resourceById(id)?.parts?.[index]
+    if (!part) throw new Error('That resource isn’t in the library.')
+    return part
+  }
+
+  // The viewer loads parts from echo-res://r/<id>/<part>[/thumb]. Only catalogued files are served.
+  protocol.handle('echo-res', async (request) => {
+    try {
+      const [, id, index, thumb] = new URL(request.url).pathname.split('/')
+      const part = partOf(id, Number(index))
+      const rel = thumb === 'thumb' ? part.thumb : part.file
+      if (!rel) return new Response('Not found', { status: 404 })
+      const file = libraryFile(rel)
+      const type = MIME[extname(file).slice(1).toLowerCase()] ?? 'application/octet-stream'
+      const headers: Record<string, string> = { 'Content-Type': type }
+      // Pages and converted documents are shown as they are, without scripts or anything from the web.
+      if (type.startsWith('text/html')) headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
+      return new Response(readFileSync(file), { headers })
+    } catch (err) {
+      return new Response((err as Error).message, { status: 404 })
+    }
+  })
+
+  ipcMain.handle('resource:folder', () => status())
+
+  ipcMain.handle('resource:choose-folder', async () => {
+    const result = await dialog.showOpenDialog(win!, { title: 'Choose your ClinicalResources folder', properties: ['openDirectory'] })
+    if (result.canceled || !result.filePaths[0]) return null
+    vault.data.settings.resourcesFolder = result.filePaths[0]
+    vault.save()
+    return status()
+  })
+
+  ipcMain.handle('resource:web', async (_e, id: string) => {
+    const url = resourceById(id)?.url
+    if (!url || !RESOURCE_SITES.some((site) => url.startsWith(site))) throw new Error('That resource has no web page.')
+    await shell.openExternal(url)
+  })
+
+  ipcMain.handle('resource:app', async (_e, id: string, index: number) => {
+    const part = partOf(id, index)
+    const error = await shell.openPath(libraryFile(part.original ?? part.file))
+    if (error) throw new Error(error)
+  })
+
+  ipcMain.handle('resource:quicklook', (_e, id: string, index: number) => {
+    const part = partOf(id, index)
+    win?.previewFile(libraryFile(part.original ?? part.file), part.label)
+  })
+
+  ipcMain.on('resource:reveal', (_e, id: string) => {
+    const r = resourceById(id)
+    const rel = r?.path ?? r?.parts?.[0]?.file
+    if (rel) shell.showItemInFolder(libraryFile(rel))
+  })
+}
+
+const MIME: Record<string, string> = {
+  pdf: 'application/pdf',
+  html: 'text/html; charset=utf-8',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4'
+}
+
 function watchIdle(): void {
   const lockIfEnabled = () => {
     if (vault.data.settings.lockEnabled) send('lock')
@@ -594,6 +809,9 @@ function watchIdle(): void {
     if (lockEnabled && powerMonitor.getSystemIdleTime() >= lockMinutes * 60) send('lock')
   }, 30_000)
 }
+
+// The library viewer's files come through their own scheme, so the PDF viewer and media elements can load them.
+protocol.registerSchemesAsPrivileged([{ scheme: 'echo-res', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }])
 
 app.setName('Echo')
 // A dedicated folder so Echo never shares data with other apps named "Echo".
@@ -629,6 +847,8 @@ app.whenReady().then(() => {
 
   registerIpc()
   registerLegacyImport()
+  registerChat()
+  registerResources()
   buildMenu()
   createWindow()
   watchIdle()

@@ -16,3 +16,10 @@ Green logo.png
 ios/**/xcuserdata/
 *.xcuserstate
 DerivedData/
+
+# Clinical resource library (published worksheets and handouts, ~500 MB). The app
+# reads it from disk; only the catalogue (src/shared/resources.json) is committed.
+ClinicalResources/
+
+# Playwright browser snapshots
+.playwright-mcp/

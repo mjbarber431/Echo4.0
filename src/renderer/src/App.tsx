@@ -13,6 +13,8 @@ import { QueueView } from './views/QueueView'
 import { ClientView } from './views/ClientView'
 import { NoteView } from './views/NoteView'
 import { SettingsView } from './views/SettingsView'
+import { LibraryView } from './views/LibraryView'
+import { ResourceViewer } from './components/ResourceViewer'
 import { Onboarding } from './views/Onboarding'
 
 export function App() {
@@ -64,6 +66,10 @@ export function App() {
       // Only from the client page: leaving a note mid-dictation would drop the recording.
       case 'scratchpad':
         return route.view === 'client' && navigate({ view: 'client', id: route.id, tab: route.tab === 'scratchpad' ? 'notes' : 'scratchpad' })
+      case 'library':
+        return route.view === 'library' ? emit('find-in-library') : navigate({ view: 'library' })
+      case 'ask':
+        return route.view === 'client' && navigate({ view: 'client', id: route.id, tab: route.tab === 'ask' ? 'notes' : 'ask' })
       case 'new-note': {
         const client = store.clients.find((c) => c.id === currentClientId && c.status === 'active')
         if (client && route.view === 'client') return startNote(client)
@@ -91,6 +97,7 @@ export function App() {
         {route.view === 'client' && <ClientView key={route.id} clientId={route.id} tab={route.tab} />}
         {route.view === 'note' && <NoteView noteId={route.id} />}
         {route.view === 'settings' && <SettingsView />}
+        {route.view === 'library' && <LibraryView />}
       </main>
       {palette && (
         <CommandPalette mode={palette} onClose={() => setPalette(null)} onNewClient={(name) => setNewClient({ name })} onStartNote={startNote} />
@@ -98,6 +105,7 @@ export function App() {
       {newClient && <ClientModal initialName={newClient.name} onClose={() => setNewClient(null)} onCreated={onClientCreated} />}
       {backup && <BackupModal mode={backup} onClose={() => setBackup(null)} />}
       {legacyImport && <LegacyImportModal onClose={() => setLegacyImport(false)} />}
+      <ResourceViewer />
       <Toasts />
     </div>
   )

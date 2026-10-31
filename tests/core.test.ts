@@ -22,6 +22,7 @@ const settings: Settings = {
   headingStyle: 'caps',
   customInstructions: '',
   textModel: 'claude-haiku-5-5',
+  chatModel: 'claude-opus-5-5',
   transcribeModel: 'parakeet-tdt-0.6b-v2',
   reasoningEffort: 'low',
   liveCoverage: false,

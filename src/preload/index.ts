@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { ChatEvent } from '../shared/chat'
 import type { LiveEvent } from '../shared/coach'
 import type { EchoApi, MobileLinkStatus, MobileMemo, TranscriberStatus, UpdateStatus } from '../shared/types'
 
@@ -46,6 +47,25 @@ const api: EchoApi = {
   chooseLetterheadImage: (kind) => ipcRenderer.invoke('letterhead:image', kind),
   saveLetterPdf: (letter, clientName) => ipcRenderer.invoke('letter:pdf', letter, clientName),
   writeLetter: (letter, clientId) => ipcRenderer.invoke('ai:letter', letter, clientId),
+  listChats: (clientId) => ipcRenderer.invoke('chat:list', clientId),
+  getChat: (threadId) => ipcRenderer.invoke('chat:get', threadId),
+  sendChat: (clientId, threadId, text, model, retry) => ipcRenderer.invoke('chat:send', clientId, threadId, text, model, retry),
+  stopChat: (threadId) => ipcRenderer.send('chat:stop', threadId),
+  setChatModel: (threadId, model) => ipcRenderer.invoke('chat:model', threadId, model),
+  deleteChat: (threadId) => ipcRenderer.invoke('chat:delete', threadId),
+  deleteAllChats: (clientId) => ipcRenderer.invoke('chat:delete-all', clientId),
+  chatPreview: (clientId, model) => ipcRenderer.invoke('chat:preview', clientId, model),
+  onChat: (handler) => {
+    const listener = (_e: Electron.IpcRendererEvent, event: ChatEvent) => handler(event)
+    ipcRenderer.on('chat', listener)
+    return () => ipcRenderer.removeListener('chat', listener)
+  },
+  resourceFolder: () => ipcRenderer.invoke('resource:folder'),
+  chooseResourceFolder: () => ipcRenderer.invoke('resource:choose-folder'),
+  openResourceWeb: (id) => ipcRenderer.invoke('resource:web', id),
+  openResourceApp: (id, part) => ipcRenderer.invoke('resource:app', id, part),
+  quickLookResource: (id, part) => ipcRenderer.invoke('resource:quicklook', id, part),
+  revealResource: (id) => ipcRenderer.send('resource:reveal', id),
   copy: (text, html) => ipcRenderer.invoke('clipboard:write', text, html),
   canUseTouchId: () => ipcRenderer.invoke('lock:available'),
   unlock: () => ipcRenderer.invoke('lock:unlock'),

@@ -1,4 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
+import type { ChatBlock, ChatTurn, ChatUsage } from '../shared/chat'
+import { RESOURCES } from '../shared/resources'
 import { coachInput, coachItems, type CoachItem } from '../shared/coach'
 import { MODEL_FAILURE } from '../shared/queue'
 import { scanRisk } from '../shared/compliance'
@@ -120,6 +122,104 @@ export async function writeLetter(apiKey: string, settings: Settings, input: Let
   const result = await structured<AiLetterResult>(apiKey, settings, buildLetterMessages(input), LETTER_SCHEMA)
   const restore = (text: string) => restoreLetterName(text, input.clientName)
   return { salutation: restore(result.salutation), body: restore(result.body), closing: restore(result.closing), review_items: result.review_items.map(restore) }
+}
+
+// ---------------------------------------------------------------------------
+// Ask Claude: a streamed consultation chat about one client. The history is
+// replayed exactly as stored, thinking blocks included, so a chat's reasoning
+// carries from one message to the next.
+// ---------------------------------------------------------------------------
+
+export interface ChatReply {
+  /** The reply as received, to be replayed verbatim later. Text only if it was stopped part way. */
+  content: ChatBlock[]
+  text: string
+  thinking: string
+  usage: ChatUsage
+  stopped: boolean
+}
+
+export async function chat(
+  apiKey: string,
+  model: string,
+  system: string,
+  turns: Pick<ChatTurn, 'role' | 'content'>[],
+  onDelta: (kind: 'thinking' | 'text', text: string) => void,
+  signal: AbortSignal
+): Promise<ChatReply> {
+  const messages = turns.map((t) => ({ role: t.role, content: t.content })) as unknown as Anthropic.MessageParam[]
+  // A cache marker on the newest message lets the next one read the whole conversation from cache.
+  const last = messages[messages.length - 1].content as Anthropic.ContentBlockParam[]
+  messages[messages.length - 1] = { role: 'user', content: [...last.slice(0, -1), { ...last[last.length - 1], cache_control: { type: 'ephemeral' } } as Anthropic.ContentBlockParam] }
+  let text = ''
+  let thinking = ''
+  const stream = anthropic(apiKey).messages.stream(
+    {
+      model,
+      max_tokens: 64000,
+      // The record is the same for every message in a chat, so it's written to the cache once and read after.
+      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+      messages,
+      thinking: { type: 'adaptive', display: 'summarized' },
+      output_config: { effort: 'medium' }
+    },
+    { signal }
+  )
+  stream.on('thinking', (delta) => {
+    thinking += delta
+    onDelta('thinking', delta)
+  })
+  stream.on('text', (delta) => {
+    text += delta
+    onDelta('text', delta)
+  })
+  try {
+    const message = await stream.finalMessage()
+    if (message.stop_reason === 'refusal') {
+      const why = message.stop_details?.explanation || message.stop_details?.category
+      throw new AiError(`Claude declined to answer this${why ? ` (${why})` : ''}. Try rephrasing the question.`)
+    }
+    const usage = message.usage
+    return {
+      content: message.content as unknown as ChatBlock[],
+      text: message.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join(''),
+      thinking,
+      usage: { input: usage.input_tokens, output: usage.output_tokens, cacheRead: usage.cache_read_input_tokens ?? 0, cacheWrite: usage.cache_creation_input_tokens ?? 0 },
+      stopped: message.stop_reason === 'max_tokens'
+    }
+  } catch (err) {
+    // Stopped by the clinician: keep what was written so far, as plain text, since a cut-off thinking block can't be replayed.
+    if (signal.aborted && text.trim()) {
+      return { content: [{ type: 'text', text }], text, thinking, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, stopped: true }
+    }
+    if (signal.aborted) throw new AiError('Stopped.')
+    throw friendly(err)
+  }
+}
+
+export async function mockChat(onDelta: (kind: 'thinking' | 'text', text: string) => void, signal: AbortSignal): Promise<ChatReply> {
+  const thinking = 'Reviewing the treatment plan and the most recent notes for patterns.'
+  const metaphor = RESOURCES.find((r) => r.kind === 'metaphor')
+  const measure = RESOURCES.find((r) => /AAQ-II|AAQ-2/.test(r.title))
+  const text = [
+    'A few things stand out in the record:',
+    '',
+    '- **Worry spikes before meetings**, and avoidance is doing the short-term work of keeping it down.',
+    '- Defusion practice is landing in session; it hasn’t yet been tried *in* a feared situation.',
+    '',
+    `For the next step, ${metaphor ? `[[r:${metaphor.id}]] ` : ''}could frame willingness before a small exposure, and ${measure ? `[[r:${measure.id}]] ` : 'the AAQ-II '}would track experiential avoidance alongside the GAD-7.`,
+    '',
+    '_Demo reply: add your Anthropic API key in Settings to chat with Claude._'
+  ].join('\n')
+  onDelta('thinking', thinking)
+  let sent = ''
+  for (const word of text.split(/(?<= )/)) {
+    if (signal.aborted) break
+    await delay(25)
+    sent += word
+    onDelta('text', word)
+  }
+  return { content: [{ type: 'text', text: sent }], text: sent, thinking, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, stopped: signal.aborted }
 }
 
 // ---------------------------------------------------------------------------

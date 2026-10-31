@@ -1,6 +1,7 @@
 import type { LiveEvent } from './coach'
 import type { LegacyClientSummary, LegacyImportReport } from './legacy'
 import type { Letter, Letterhead } from './letter'
+import type { ChatEvent, ChatSummary, ChatThread } from './chat'
 
 // Data model shared by the main process and the renderer.
 // IDs are UUIDs and every record carries timestamps so a future iOS companion
@@ -150,6 +151,8 @@ export interface Settings {
   customInstructions: string
   /** Claude model that writes notes, plans and context. */
   textModel: string
+  /** Claude model for new Ask Claude chats (CHAT_MODELS). */
+  chatModel: string
   /** Local speech model (TRANSCRIBE_MODELS). */
   transcribeModel: string
   reasoningEffort: ReasoningEffort
@@ -158,6 +161,8 @@ export interface Settings {
   lockEnabled: boolean
   lockMinutes: number
   onboarded: boolean
+  /** The ClinicalResources folder on this Mac. Empty until chosen; in development it defaults to the project's copy. */
+  resourcesFolder?: string
   /** Experimental: write notes and amendments with LOCAL_MODEL on this Mac instead of Claude. */
   localModel?: boolean
   /** Experimental: let the local model think before it writes. Slower. */
@@ -323,6 +328,33 @@ export interface EchoApi {
   saveLetterPdf(letter: Letter, clientName: string): Promise<string | null>
   /** Writes the letter from the clinician's ideas, or polishes their draft. */
   writeLetter(letter: Letter, clientId: string): Promise<AiLetterResult>
+  /** A client's Ask Claude chats, newest first. */
+  listChats(clientId: string): Promise<ChatSummary[]>
+  getChat(threadId: string): Promise<ChatThread | null>
+  /**
+   * Sends a message, starting a chat if `threadId` is null, and returns the chat with the message added.
+   * The reply streams through onChat. With `retry`, the last reply is replaced instead and `text` is ignored.
+   */
+  sendChat(clientId: string, threadId: string | null, text: string, model: string, retry?: boolean): Promise<ChatThread>
+  stopChat(threadId: string): void
+  setChatModel(threadId: string, model: string): Promise<ChatThread>
+  deleteChat(threadId: string): Promise<void>
+  /** Deletes every chat for one client, or for all clients if no ID is given. Returns how many were deleted. */
+  deleteAllChats(clientId?: string): Promise<number>
+  /** How many finalized notes there are and roughly what starting a chat would cost. */
+  chatPreview(clientId: string, model: string): Promise<{ notes: number; cost: number }>
+  onChat(handler: (event: ChatEvent) => void): () => void
+  /** Where the resource library is, and whether it's there. */
+  resourceFolder(): Promise<{ path: string; found: boolean }>
+  /** Asks for the ClinicalResources folder. Null if cancelled. */
+  chooseResourceFolder(): Promise<{ path: string; found: boolean } | null>
+  /** Opens a resource's web page (ACBS, or an official site) in the browser. */
+  openResourceWeb(id: string): Promise<void>
+  /** Opens a part's file in its own app (Preview, Word, Keynote…). */
+  openResourceApp(id: string, part: number): Promise<void>
+  /** Shows a part in the macOS Quick Look panel, for slides and spreadsheets. */
+  quickLookResource(id: string, part: number): Promise<void>
+  revealResource(id: string): void
   copy(text: string, html: string): Promise<void>
   canUseTouchId(): Promise<boolean>
   unlock(): Promise<boolean>

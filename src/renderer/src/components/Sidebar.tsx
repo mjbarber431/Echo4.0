@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChevronRight, Inbox, Plus, Search, Settings as Gear } from 'lucide-react'
+import { BookOpen, ChevronRight, Inbox, Plus, Search, Settings as Gear } from 'lucide-react'
 import { todayISO } from '@shared/compliance'
 import { buildQueue, queueCount } from '@shared/queue'
 import { useStore } from '../store'
@@ -47,6 +47,12 @@ export function Sidebar({ onNewClient, onFind }: { onNewClient(): void; onFind()
           </span>
           <span className="side-name">Queue</span>
           {waiting > 0 && <span className="side-count">{waiting}</span>}
+        </button>
+        <button className={`side-item ${route.view === 'library' ? 'active' : ''}`} onClick={() => navigate({ view: 'library' })} title="⇧⌘L">
+          <span className="side-icon">
+            <BookOpen size={15} />
+          </span>
+          <span className="side-name">Library</span>
         </button>
       </nav>
 

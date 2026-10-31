@@ -8,6 +8,7 @@ import { TRANSCRIBE_MODELS, type Client, type MobileMemo, type Note, type Settin
 import { isLegacyBackup } from './legacyBackup'
 import type { LinkPairing } from './link'
 import type { Letterhead } from '../shared/letter'
+import type { ChatThread } from '../shared/chat'
 
 // All client data lives in one AES-256-GCM encrypted file. The data key is
 // random and itself encrypted with the macOS Keychain via Electron safeStorage,
@@ -29,6 +30,8 @@ export interface VaultData {
   diagnosesBackfilled?: boolean
   /** Logo, signatures and practice details for letters. Missing until first edited. */
   letterhead?: Letterhead
+  /** Ask Claude conversations, per client. Not part of the record. */
+  chats: ChatThread[]
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -43,6 +46,7 @@ export const DEFAULT_SETTINGS: Settings = {
   headingStyle: 'caps',
   customInstructions: '',
   textModel: 'claude-haiku-5-5',
+  chatModel: 'claude-opus-5-5',
   transcribeModel: 'parakeet-tdt-0.6b-v2',
   reasoningEffort: 'medium',
   liveCoverage: false,
@@ -131,7 +135,7 @@ export class Vault {
 
   private load(): VaultData {
     if (!existsSync(this.vaultPath)) {
-      return { version: 1, settings: { ...DEFAULT_SETTINGS }, apiKey: '', clients: [], notes: [], inbox: [], link: null, receivedMemoIds: [], diagnosesBackfilled: true }
+      return { version: 1, settings: { ...DEFAULT_SETTINGS }, apiKey: '', clients: [], notes: [], inbox: [], link: null, receivedMemoIds: [], diagnosesBackfilled: true, chats: [] }
     }
     const blob = readFileSync(this.vaultPath)
     if (!blob.subarray(0, MAGIC.length).equals(MAGIC)) throw new Error('Unrecognized vault file.')
@@ -150,7 +154,8 @@ export class Vault {
       link: raw.link ?? null,
       receivedMemoIds: raw.receivedMemoIds ?? [],
       diagnosesBackfilled: true,
-      letterhead: raw.letterhead
+      letterhead: raw.letterhead,
+      chats: raw.chats ?? []
     }
   }
 

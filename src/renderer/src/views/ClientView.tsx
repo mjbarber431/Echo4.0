@@ -8,6 +8,7 @@ import { openLoopCount } from '@shared/scratch'
 import { relativeDay } from '../lib/util'
 import { useStore, type ClientTab } from '../store'
 import { ClientModal } from '../components/ClientModal'
+import { AskClaude } from '../components/AskClaude'
 import { LetterModal } from '../components/LetterModal'
 import { Scratchpad } from '../components/Scratchpad'
 import { AutoTextarea, Avatar, Button, CopyButton, Empty } from '../components/ui'
@@ -131,14 +132,15 @@ export function ClientView({ clientId, tab = 'notes' }: { clientId: string; tab?
             ['notes', 'Notes', clientNotes.length],
             ['plan', 'Treatment plan', reviewDue ? '!' : null],
             ['context', 'Clinical context', null],
-            ['scratchpad', 'Scratchpad', openLoopCount(client.scratchpad)]
+            ['scratchpad', 'Scratchpad', openLoopCount(client.scratchpad)],
+            ['ask', 'Ask Claude', null]
           ] as const
         ).map(([key, label, badge]) => (
           <button
             key={key}
             className={tab === key ? 'on' : ''}
             onClick={() => navigate({ view: 'client', id: client.id, tab: key })}
-            title={key === 'scratchpad' ? (badge ? `${badge} open ${badge === 1 ? 'loop' : 'loops'} · ⇧⌘P` : '⇧⌘P') : undefined}
+            title={key === 'scratchpad' ? (badge ? `${badge} open ${badge === 1 ? 'loop' : 'loops'} · ⇧⌘P` : '⇧⌘P') : key === 'ask' ? '⇧⌘A' : undefined}
           >
             {label}
             {badge !== null && badge !== 0 && <span className={`tab-badge ${badge === '!' ? 'warn' : ''}`}>{badge === '!' ? 'Review due' : badge}</span>}
@@ -147,11 +149,12 @@ export function ClientView({ clientId, tab = 'notes' }: { clientId: string; tab?
       </nav>
 
       <div className="page-body">
-        <div className={tab === 'scratchpad' ? 'tab-content scratch-tab' : 'tab-content'}>
+        <div className={tab === 'scratchpad' ? 'tab-content scratch-tab' : tab === 'ask' ? 'tab-content ask-tab' : 'tab-content'}>
           {tab === 'notes' && <NotesTab client={client} notes={clientNotes} onStart={start} />}
           {tab === 'plan' && <PlanTab client={client} />}
           {tab === 'context' && <ContextTab client={client} />}
           {tab === 'scratchpad' && <Scratchpad client={client} />}
+          {tab === 'ask' && <AskClaude client={client} />}
         </div>
       </div>
 
