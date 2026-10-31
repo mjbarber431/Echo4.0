@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeImage, nativeTheme, powerMonitor, protocol, session, shell, systemPreferences } from 'electron'
 import { randomUUID } from 'node:crypto'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { extname, join, resolve, sep } from 'node:path'
 import QRCode from 'qrcode'
 import { autoUpdater } from 'electron-updater'
@@ -705,9 +705,28 @@ function registerChat(): void {
   })
 }
 
-/** The resource library folder: the one chosen in Settings, or the project's copy while developing. */
+/** The resource library folder: the one chosen in the Library, else the practice's shared Google Drive copy, else the project's copy while developing. */
 function resourceRoot(): string {
-  return vault.data.settings.resourcesFolder || (app.isPackaged ? '' : join(app.getAppPath(), 'ClinicalResources'))
+  return vault.data.settings.resourcesFolder || driveLibrary() || (app.isPackaged ? '' : join(app.getAppPath(), 'ClinicalResources'))
+}
+
+let driveLibraryPath = ''
+/** Shared drives/Resources/Echo Library under Google Drive for desktop, whichever account is signed in. */
+function driveLibrary(): string {
+  if (driveLibraryPath && existsSync(driveLibraryPath)) return driveLibraryPath
+  const cloud = join(app.getPath('home'), 'Library', 'CloudStorage')
+  try {
+    for (const account of readdirSync(cloud).filter((name) => name.startsWith('GoogleDrive-'))) {
+      const shared = join(cloud, account, 'Shared drives')
+      // Drive keeps the shared drive's name as typed, trailing space and all.
+      const drive = existsSync(shared) ? readdirSync(shared).find((name) => name.trim() === 'Resources') : undefined
+      const library = drive && join(shared, drive, 'Echo Library')
+      if (library && existsSync(library)) return (driveLibraryPath = library)
+    }
+  } catch {
+    // No Google Drive on this Mac.
+  }
+  return ''
 }
 
 /** Sites library links may open. */
