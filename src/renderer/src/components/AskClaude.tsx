@@ -23,7 +23,10 @@ interface Live {
 export function AskClaude({ client }: { client: Client }) {
   const { settings, saveSettings, notes, toast } = useStore()
   const [list, setList] = useState<ChatSummary[]>([])
+  const [listed, setListed] = useState(false)
   const [thread, setThread] = useState<ChatThread | null>(null)
+  // Coming back to a chat: hold the welcome screen until it loads, so it doesn't flash.
+  const [opening, setOpening] = useState(() => !!lastOpen.get(client.id))
   const [model, setModel] = useState(settings.chatModel)
   const [draft, setDraft] = useState('')
   const [live, setLive] = useState<Live | null>(null)
@@ -38,7 +41,16 @@ export function AskClaude({ client }: { client: Client }) {
   const threadRef = useRef(thread)
   threadRef.current = thread
 
-  const refreshList = useCallback(() => void api().listChats(client.id).then(setList), [client.id])
+  const refreshList = useCallback(
+    () =>
+      void api()
+        .listChats(client.id)
+        .then((l) => {
+          setList(l)
+          setListed(true)
+        }),
+    [client.id]
+  )
 
   const open = useCallback(
     async (id: string | null) => {
@@ -48,6 +60,7 @@ export function AskClaude({ client }: { client: Client }) {
       pinned.current = true
       const next = id ? await api().getChat(id) : null
       setThread(next)
+      setOpening(false)
       if (next) setModel(next.model)
       input.current?.focus()
     },
@@ -172,7 +185,7 @@ export function AskClaude({ client }: { client: Client }) {
               </button>
             </div>
           ))}
-          {list.length === 0 && <p className="rail-empty">Chats you start are saved here, encrypted with the rest of Echo’s data.</p>}
+          {listed && list.length === 0 && <p className="rail-empty">Chats you start are saved here, encrypted with the rest of Echo’s data.</p>}
         </div>
         {list.length > 0 && (
           <button className="ask-clear" onClick={() => void removeAll()}>
@@ -183,7 +196,7 @@ export function AskClaude({ client }: { client: Client }) {
 
       <section className="ask-main">
         <header className="ask-head">
-          <div className="ask-title">
+          <div className="ask-title" style={opening ? { visibility: 'hidden' } : undefined}>
             <h3>{thread?.title ?? 'New chat'}</h3>
             <span className="ask-seen">
               <Lock size={11} />
@@ -216,7 +229,7 @@ export function AskClaude({ client }: { client: Client }) {
           }}
         >
           <div className="ask-thread">
-            {!thread && (
+            {!thread && !opening && (
               <div className="ask-welcome">
                 <div className="ask-mark">
                   <Sparkles size={22} />
