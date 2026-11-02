@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, ClipboardCheck, ExternalLink, FileAudio, FileText, FolderOpen, Image, Lightbulb, ListChecks, NotebookTabs, PlayCircle, Search, Sparkles } from 'lucide-react'
-import { KIND_LABEL, RESOURCES, resourceWhere, searchResources, TOPICS, type Resource, type ResourceKind } from '@shared/resources'
+import { findResources, KIND_LABEL, RESOURCES, resourceWhere, TOPICS, type Resource, type ResourceKind } from '@shared/resources'
 import { api } from '../lib/util'
 import { useCommand, useStore } from '../store'
 import { Button, Empty } from '../components/ui'
@@ -37,15 +37,17 @@ export function LibraryView() {
   useEffect(() => void api().resourceFolder().then(setFolder), [])
   useCommand('find-in-library', () => search.current?.focus())
 
-  const shown = useMemo(() => {
+  const found = useMemo(() => {
     const filtered = RESOURCES.filter((r) => (!topic || r.topic === topic) && (source === 'all' || (source === 'acbs') === (r.source === 'acbs')))
-    return searchResources(query, filtered)
+    return findResources(query, filtered)
   }, [query, topic, source])
+  const shown = found.items
 
   const groups = useMemo(() => {
-    if (query.trim()) return [{ topic: `${shown.length} ${shown.length === 1 ? 'match' : 'matches'}`, items: shown }]
+    if (query.trim() && !shown.length) return []
+    if (query.trim()) return [{ topic: found.partial ? `Nothing fits every word · ${shown.length} close ${shown.length === 1 ? 'match' : 'matches'}` : `${shown.length} ${shown.length === 1 ? 'match' : 'matches'}`, items: shown }]
     return TOPICS.map((t) => ({ topic: t, items: shown.filter((r) => r.topic === t) })).filter((g) => g.items.length)
-  }, [shown, query])
+  }, [shown, found.partial, query])
 
   const counts = useMemo(() => Object.fromEntries(TOPICS.map((t) => [t, RESOURCES.filter((r) => r.topic === t).length])), [])
   const local = RESOURCES.some((r) => r.path)

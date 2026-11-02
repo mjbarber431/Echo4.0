@@ -53,9 +53,55 @@ export function buildQueue(notes: Note[], clients: Client[], jobs: Record<string
   return q
 }
 
-/** What still needs the clinician: the count shown beside Queue. Notes being written show in Activity instead. */
-export function queueCount(q: Queue): number {
-  return q.failed.length + q.ready.length + q.uncopied.length
+/** What still needs the clinician: the count shown beside Queue. Work in progress shows in Activity instead. */
+export function queueCount(q: Queue, plans?: PlanQueue): number {
+  return q.failed.length + q.ready.length + q.uncopied.length + (plans ? plans.failed.length + plans.ready.length : 0)
+}
+
+// ---------------------------------------------------------------------------
+// Treatment plans are drafted in the background too, one per client at a time,
+// and wait in the queue for review the way a written note does.
+// ---------------------------------------------------------------------------
+
+export interface PlanJob {
+  stage: 'transcribing' | 'writing'
+  startedAt: number
+  /** Whether the client already had a plan, so this updates it rather than drafting one. */
+  updating: boolean
+  /** What was dictated, once transcribed, so a retry doesn't lose it. Empty means draft from the record. */
+  dictation?: string
+  /** Set when the job failed. The plan is unchanged; the job stays so it can be retried. */
+  error?: string
+}
+
+/** A plan Echo drafted that the clinician hasn't signed off on yet. */
+export interface PlanDraft {
+  reviewItems: string[]
+  updated: boolean
+  finishedAt: number
+  /** Finished in the background and not opened since. */
+  unseen: boolean
+}
+
+export interface PlanQueue {
+  writing: Client[]
+  failed: Client[]
+  /** Drafted and waiting for review, oldest first. */
+  ready: Client[]
+}
+
+export function buildPlanQueue(clients: Client[], jobs: Record<string, PlanJob>, drafts: Record<string, PlanDraft>): PlanQueue {
+  const q: PlanQueue = { writing: [], failed: [], ready: [] }
+  for (const c of clients) {
+    const job = jobs[c.id]
+    if (job) (job.error ? q.failed : q.writing).push(c)
+    else if (drafts[c.id]) q.ready.push(c)
+  }
+  const started = (c: Client) => jobs[c.id]?.startedAt ?? 0
+  q.writing.sort((a, b) => started(a) - started(b))
+  q.failed.sort((a, b) => started(a) - started(b))
+  q.ready.sort((a, b) => drafts[a.id].finishedAt - drafts[b.id].finishedAt)
+  return q
 }
 
 // ---------------------------------------------------------------------------

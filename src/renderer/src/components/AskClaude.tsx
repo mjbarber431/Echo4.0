@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUp, BookOpen, ChevronRight, Loader2, Lock, MessageSquarePlus, Mic, RotateCcw, Sparkles, Square, Trash2 } from 'lucide-react'
 import type { Client } from '@shared/types'
-import { CHAT_MODELS, CHAT_STARTERS, chatToHtml, formatCost, splitResourceTokens, threadCost, type ChatSummary, type ChatThread, type ChatTurn } from '@shared/chat'
+import { CHAT_MODELS, CHAT_STARTERS, chatToHtml, describeDocuments, formatCost, splitResourceTokens, threadCost, type AssignState, type ChatSummary, type ChatThread, type ChatTurn } from '@shared/chat'
 import { KIND_LABEL, resourceById, resourceWhere, searchResources } from '@shared/resources'
 import { KIND_ICON, useOpenResource } from '../views/LibraryView'
 import { todayISO } from '@shared/compliance'
 import { formatElapsed, useDictation } from '../lib/useDictation'
-import { api, errorMessage, relativeDay } from '../lib/util'
+import { api, errorMessage, localDay, relativeDay } from '../lib/util'
 import { useCommand, useStore } from '../store'
 import { AutoTextarea, CopyButton, Segmented } from './ui'
 
@@ -21,7 +21,7 @@ interface Live {
 
 /** A consultation chat with Claude about one client. Private, and never part of the record. */
 export function AskClaude({ client }: { client: Client }) {
-  const { settings, saveSettings, notes, toast } = useStore()
+  const { settings, saveSettings, notes, documents, addDocuments, navigate, toast } = useStore()
   const [list, setList] = useState<ChatSummary[]>([])
   const [listed, setListed] = useState(false)
   const [thread, setThread] = useState<ChatThread | null>(null)
@@ -40,6 +40,26 @@ export function AskClaude({ client }: { client: Client }) {
   const lastTop = useRef(0)
   const threadRef = useRef(thread)
   threadRef.current = thread
+  const assigning = useRef(new Set<string>())
+
+  // The Library items this client has been given: references to them show "Assigned", which opens their copy.
+  const given = useMemo(() => documents.filter((d) => d.clientId === client.id && d.origin.kind === 'library'), [documents, client.id])
+  const assigned: AssignState = useMemo(() => new Set(given.flatMap((d) => (d.origin.kind === 'library' ? [d.origin.resourceId] : []))), [given])
+  const assign = async (resourceId: string) => {
+    if (assigning.current.has(resourceId)) return
+    const copy = given.filter((d) => d.origin.kind === 'library' && d.origin.resourceId === resourceId).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+    if (copy) return navigate({ view: 'document', id: copy.id })
+    assigning.current.add(resourceId)
+    try {
+      const doc = await api().assignDocument(client.id, resourceId)
+      addDocuments([doc])
+      toast(`Assigned to ${client.name}`, 'success', { label: 'Fill in', run: () => navigate({ view: 'document', id: doc.id }) })
+    } catch (err) {
+      toast(errorMessage(err), 'error')
+    } finally {
+      assigning.current.delete(resourceId)
+    }
+  }
 
   const refreshList = useCallback(
     () =>
@@ -162,6 +182,12 @@ export function AskClaude({ client }: { client: Client }) {
 
   const finalized = notes.filter((n) => n.clientId === client.id && n.status === 'final')
   const unseen = thread ? finalized.filter((n) => !thread.noteIds.includes(n.id)).length : 0
+  // Chats started before Claude saw documents get the list with their next message too, if there is one.
+  const documentsChanged = !!thread && describeDocuments(given, client) !== (thread.documents ?? '')
+  const sees = (noteCount: number, itemCount?: number) => {
+    const n = `${noteCount} ${noteCount === 1 ? 'note' : 'notes'}`
+    return itemCount ? `the plan, context, ${n} and ${itemCount} Library ${itemCount === 1 ? 'item' : 'items'}` : `the plan, context and ${n}`
+  }
   const first = client.name.trim().split(/\s+/)[0]
   const last = thread?.turns[thread.turns.length - 1]
   const cost = thread ? threadCost(thread) : 0
@@ -178,7 +204,7 @@ export function AskClaude({ client }: { client: Client }) {
             <div key={t.id} className={`ask-item ${thread?.id === t.id ? 'on' : ''}`} onClick={() => void open(t.id)} role="button" tabIndex={0}>
               <span className="ask-item-title">{t.title}</span>
               <span className="ask-item-meta">
-                {relativeDay(t.updatedAt.slice(0, 10), todayISO())} · {modelLabel(t.model)}
+                {relativeDay(localDay(t.updatedAt), todayISO())} · {modelLabel(t.model)}
               </span>
               <button className="icon-btn ask-item-del" onClick={(e) => (e.stopPropagation(), void removeChat(t.id))} aria-label="Delete chat" title="Delete chat">
                 <Trash2 size={13} />
@@ -201,8 +227,8 @@ export function AskClaude({ client }: { client: Client }) {
             <span className="ask-seen">
               <Lock size={11} />
               {thread
-                ? `Claude sees the plan, context and ${thread.seen.notes} ${thread.seen.notes === 1 ? 'note' : 'notes'} as of ${relativeDay(thread.seen.asOf.slice(0, 10), todayISO()).toLowerCase()}`
-                : `Claude will see the plan, context and ${preview?.notes ?? finalized.length} finalized ${finalized.length === 1 ? 'note' : 'notes'}`}
+                ? `Claude sees ${sees(thread.seen.notes, thread.seen.documents)} as of ${relativeDay(localDay(thread.seen.asOf), todayISO()).toLowerCase()}`
+                : `Claude will see ${sees(preview?.notes ?? finalized.length, given.length)}`}
               {' · name removed · not part of the record'}
               {cost > 0 && ` · ${formatCost(cost)} so far`}
             </span>
@@ -214,7 +240,10 @@ export function AskClaude({ client }: { client: Client }) {
           className="ask-scroll"
           ref={scroller}
           onClick={(e) => {
-            const chip = (e.target as HTMLElement).closest<HTMLElement>('[data-res]')
+            const target = e.target as HTMLElement
+            const give = target.closest<HTMLElement>('[data-assign]')
+            if (give?.dataset.assign) return void assign(give.dataset.assign)
+            const chip = target.closest<HTMLElement>('[data-res]')
             if (chip?.dataset.res) openResource(chip.dataset.res)
           }}
           onWheel={(e) => {
@@ -250,7 +279,7 @@ export function AskClaude({ client }: { client: Client }) {
               </div>
             )}
 
-            {thread?.turns.map((turn) => <Turn key={turn.id} turn={turn} modelLabel={modelLabel(turn.model)} />)}
+            {thread?.turns.map((turn) => <Turn key={turn.id} turn={turn} modelLabel={modelLabel(turn.model)} assigned={assigned} />)}
 
             {live && (
               <div className="ask-msg assistant">
@@ -259,7 +288,7 @@ export function AskClaude({ client }: { client: Client }) {
                 </div>
                 {live.thinking && !live.text && <p className="ask-thinking-live">{lastLine(live.thinking)}</p>}
                 {live.text ? (
-                  <div className="ask-body" dangerouslySetInnerHTML={{ __html: chatToHtml(live.text) }} />
+                  <div className="ask-body" dangerouslySetInnerHTML={{ __html: chatToHtml(live.text, assigned) }} />
                 ) : (
                   <div className="ask-wait">
                     <span />
@@ -299,6 +328,7 @@ export function AskClaude({ client }: { client: Client }) {
               {unseen === 1 ? 'A note was' : `${unseen} notes were`} finalized since this chat started. {unseen === 1 ? 'It goes' : 'They go'} to Claude with your next message.
             </p>
           )}
+          {documentsChanged && <p className="ask-notice">{first}’s Library items changed since Claude last saw them. The current list goes to Claude with your next message.</p>}
           {picker && (
             <ResourcePicker
               onPick={(id) => {
@@ -356,12 +386,13 @@ export function AskClaude({ client }: { client: Client }) {
   )
 }
 
-function Turn({ turn, modelLabel }: { turn: ChatTurn; modelLabel: string }) {
+function Turn({ turn, modelLabel, assigned }: { turn: ChatTurn; modelLabel: string; assigned: AssignState }) {
   const [showThinking, setShowThinking] = useState(false)
   if (turn.role === 'user') {
     return (
       <div className="ask-msg user">
         {turn.addedNotes && <span className="ask-added">+ {turn.addedNotes} new {turn.addedNotes === 1 ? 'note' : 'notes'} shared</span>}
+        {turn.documentsUpdated && <span className="ask-added">+ Library items shared</span>}
         <div className="ask-bubble">
           {splitResourceTokens(turn.text).map((part, i) => {
             if ('text' in part) return part.text
@@ -387,7 +418,7 @@ function Turn({ turn, modelLabel }: { turn: ChatTurn; modelLabel: string }) {
         )}
       </div>
       {showThinking && turn.thinking && <div className="ask-thought">{turn.thinking}</div>}
-      <div className="ask-body" dangerouslySetInnerHTML={{ __html: chatToHtml(turn.text) }} />
+      <div className="ask-body" dangerouslySetInnerHTML={{ __html: chatToHtml(turn.text, assigned) }} />
       {turn.stopped && <p className="ask-stopped">Stopped before Claude finished.</p>}
     </div>
   )

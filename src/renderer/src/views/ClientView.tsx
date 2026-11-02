@@ -11,11 +11,12 @@ import { ClientModal } from '../components/ClientModal'
 import { AskClaude } from '../components/AskClaude'
 import { LetterModal } from '../components/LetterModal'
 import { Scratchpad } from '../components/Scratchpad'
-import { AutoTextarea, Avatar, Button, CopyButton, Empty } from '../components/ui'
+import { Avatar, Button, CopyButton, Empty } from '../components/ui'
 import { PlanTab } from './PlanTab'
+import { DocumentsTab } from '../components/Documents'
 
 export function ClientView({ clientId, tab = 'notes' }: { clientId: string; tab?: ClientTab }) {
-  const { clients, notes, navigate, createNote, saveClient, deleteClient, toast } = useStore()
+  const { clients, notes, documents, navigate, createNote, saveClient, deleteClient, toast } = useStore()
   const client = clients.find((c) => c.id === clientId)
   const [editing, setEditing] = useState(false)
   const [menu, setMenu] = useState(false)
@@ -131,7 +132,7 @@ export function ClientView({ clientId, tab = 'notes' }: { clientId: string; tab?
           [
             ['notes', 'Notes', clientNotes.length],
             ['plan', 'Treatment plan', reviewDue ? '!' : null],
-            ['context', 'Clinical context', null],
+            ['documents', 'Documents', documents.filter((d) => d.clientId === client.id && d.status === 'todo').length],
             ['scratchpad', 'Scratchpad', openLoopCount(client.scratchpad)],
             ['ask', 'Ask Claude', null]
           ] as const
@@ -140,10 +141,10 @@ export function ClientView({ clientId, tab = 'notes' }: { clientId: string; tab?
             key={key}
             className={tab === key ? 'on' : ''}
             onClick={() => navigate({ view: 'client', id: client.id, tab: key })}
-            title={key === 'scratchpad' ? (badge ? `${badge} open ${badge === 1 ? 'loop' : 'loops'} · ⇧⌘P` : '⇧⌘P') : key === 'ask' ? '⇧⌘A' : undefined}
+            title={key === 'scratchpad' ? (badge ? `${badge} open ${badge === 1 ? 'loop' : 'loops'} · ⇧⌘P` : '⇧⌘P') : key === 'ask' ? '⇧⌘A' : badge === '!' ? 'Treatment plan review due' : undefined}
           >
             {label}
-            {badge !== null && badge !== 0 && <span className={`tab-badge ${badge === '!' ? 'warn' : ''}`}>{badge === '!' ? 'Review due' : badge}</span>}
+            {badge === '!' ? <span className="tab-dot" aria-label="Review due" /> : badge !== null && badge !== 0 && <span className="tab-badge">{badge}</span>}
           </button>
         ))}
       </nav>
@@ -152,7 +153,7 @@ export function ClientView({ clientId, tab = 'notes' }: { clientId: string; tab?
         <div className={tab === 'scratchpad' ? 'tab-content scratch-tab' : tab === 'ask' ? 'tab-content ask-tab' : 'tab-content'}>
           {tab === 'notes' && <NotesTab client={client} notes={clientNotes} onStart={start} />}
           {tab === 'plan' && <PlanTab client={client} />}
-          {tab === 'context' && <ContextTab client={client} />}
+          {tab === 'documents' && <DocumentsTab client={client} />}
           {tab === 'scratchpad' && <Scratchpad client={client} />}
           {tab === 'ask' && <AskClaude client={client} />}
         </div>
@@ -234,40 +235,6 @@ function NotesTab({ client, notes, onStart }: { client: Client; notes: Note[]; o
           </div>
         </section>
       ))}
-    </div>
-  )
-}
-
-function ContextTab({ client }: { client: Client }) {
-  const { saveClient } = useStore()
-  const [text, setText] = useState(client.context)
-  // The context the text was loaded from. When it changes underneath (a background rebuild), unedited text follows it.
-  const [base, setBase] = useState(client.context)
-  if (base !== client.context) {
-    setBase(client.context)
-    if (text === base) setText(client.context)
-  }
-  const dirty = text !== client.context
-  return (
-    <div className="context-tab">
-      <div className="explainer">
-        <h3>Clinical context</h3>
-        <p className="muted">
-          A rolling summary Echo refreshes each time you finalize a note, so you never have to repeat background. It’s included (without the client’s name) when
-          generating notes. Edit anything that’s off.
-        </p>
-      </div>
-      <AutoTextarea className="context-edit" value={text} minRows={10} onChange={(e) => setText(e.target.value)} placeholder="Nothing yet. This fills in after your first finalized note or treatment plan." />
-      {dirty && (
-        <div className="row gap">
-          <Button variant="primary" onClick={() => saveClient({ ...client, context: text })}>
-            Save context
-          </Button>
-          <Button variant="ghost" onClick={() => setText(client.context)}>
-            Revert
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

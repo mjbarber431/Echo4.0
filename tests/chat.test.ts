@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Client, Note } from '../src/shared/types'
-import { buildChatSystem, chatTitle, chatToHtml, formatCost, threadCost, turnCost, userContent, type ChatThread } from '../src/shared/chat'
+import { buildChatSystem, chatTitle, chatToHtml, describeDocuments, formatCost, threadCost, turnCost, userContent, type ChatThread } from '../src/shared/chat'
+import type { ClientDocument } from '../src/shared/documents'
+import { RESOURCES } from '../src/shared/resources'
 
 const client: Client = {
   id: 'c1',
@@ -61,9 +63,72 @@ describe('chat prompt', () => {
     expect(content[0].text).toContain('finalized since this chat started')
   })
 
+  const doc = (over: Partial<ClientDocument>): ClientDocument => ({
+    id: 'd',
+    clientId: 'c1',
+    title: 'PHQ-9',
+    origin: { kind: 'library', resourceId: 'abc12345', part: 0 },
+    file: 'f',
+    pageCount: 1,
+    status: 'todo',
+    completedAt: null,
+    score: '',
+    layout: null,
+    marks: [],
+    fields: {},
+    createdAt: '2026-10-01T12:00:00',
+    updatedAt: '2026-10-01T12:00:00',
+    ...over
+  })
+
+  it('tells Claude which Library items the client has, with status and scores, but nothing else', () => {
+    const docs = [
+      doc({ id: 'd2', title: 'PHQ-9', status: 'done', completedAt: '2026-10-20T12:00:00', score: '9', createdAt: '2026-10-15T12:00:00' }),
+      doc({ id: 'd1', title: 'PHQ-9 for Jordan', status: 'done', completedAt: '2026-10-02T12:00:00', score: '14', createdAt: '2026-10-01T12:00:00' }),
+      doc({ id: 'd3', title: 'Values worksheet', origin: { kind: 'library', resourceId: 'def67890', part: 0 }, createdAt: '2026-10-22T12:00:00' }),
+      doc({ id: 'd4', title: 'Consent signed by Jordan’s mother Pat', origin: { kind: 'upload', filename: 'consent.pdf' } }),
+      doc({ id: 'd5', clientId: 'c2', title: 'Someone else’s GAD-7' })
+    ]
+    const list = describeDocuments(docs, client)
+    expect(list.split('\n')).toEqual([
+      '- PHQ-9 for Client [library abc12345]: given 10/01/2026, completed 10/02/2026, score 14',
+      '- PHQ-9 [library abc12345]: given 10/15/2026, completed 10/20/2026, score 9',
+      '- Values worksheet [library def67890]: given 10/22/2026, not completed yet'
+    ])
+    const system = buildChatSystem(client, notes, '2026-10-30', docs)
+    expect(system).toContain('LIBRARY ITEMS GIVEN TO THE CLIENT')
+    expect(system).toContain('score 9')
+    expect(system).not.toMatch(/Jordan|Avery/)
+    expect(system.slice(system.indexOf('LIBRARY ITEMS GIVEN'))).not.toMatch(/Consent|Pat\b|Someone/)
+    expect(buildChatSystem(client, notes, '2026-10-30')).toContain('LIBRARY ITEMS GIVEN TO THE CLIENT (oldest first)\nNone yet.')
+  })
+
+  it('sends the current list ahead of a message when the documents changed', () => {
+    const content = userContent('Next steps?', client, [], '- PHQ-9 [library abc12345]: given 10/01/2026, not completed yet')
+    expect(content).toHaveLength(2)
+    expect(content[0].text).toContain('have changed since you last saw them')
+    expect(userContent('Next steps?', client, [])).toHaveLength(1)
+  })
+
   it('titles a chat from its first line', () => {
     expect(chatTitle('  What patterns do you see?\nMore')).toBe('What patterns do you see?')
     expect(chatTitle('x'.repeat(100))).toHaveLength(58)
+  })
+})
+
+describe('assigning from a reply', () => {
+  const r = RESOURCES.find((x) => x.parts?.some((p) => p.format === 'pdf'))!
+
+  it('puts an Assign button beside a reference, or Assigned once the client has it', () => {
+    expect(chatToHtml(`Try [[r:${r.id}]].`, new Set())).toContain(`data-assign="${r.id}"`)
+    expect(chatToHtml(`Try [[r:${r.id}]].`, new Set())).toContain('>Assign<')
+    expect(chatToHtml(`Try [[r:${r.id}]].`, new Set([r.id]))).toContain('res-assign done')
+  })
+
+  it('leaves the button out of copied replies and web-only links', () => {
+    expect(chatToHtml(`Try [[r:${r.id}]].`)).not.toContain('data-assign')
+    const web = RESOURCES.find((x) => !x.parts?.length)!
+    expect(chatToHtml(`See [[r:${web.id}]].`, new Set())).not.toContain('data-assign')
   })
 })
 

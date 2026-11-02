@@ -3,7 +3,8 @@ import type { Client, Diagnosis, SessionSetting } from '@shared/types'
 import { DEFAULT_CLIENT_SETTING, SETTING_LABEL } from '@shared/compliance'
 import { useStore } from '../store'
 import { DiagnosisPicker } from './DiagnosisPicker'
-import { Button, Field, Modal, Segmented } from './ui'
+import { ChevronDown } from 'lucide-react'
+import { AutoTextarea, Button, Field, Modal, Segmented } from './ui'
 
 export type ClientStart = 'intake' | 'existing'
 
@@ -20,11 +21,15 @@ export function ClientModal({ client, initialName = '', onClose, onCreated }: {
   const [setting, setSetting] = useState<SessionSetting>(client?.setting ?? DEFAULT_CLIENT_SETTING)
   const [diagnoses, setDiagnoses] = useState<Diagnosis[]>(client?.diagnoses ?? [])
   const [start, setStart] = useState<ClientStart>('intake')
+  const [context, setContext] = useState(client?.context ?? '')
+  const [showContext, setShowContext] = useState(false)
 
   const submit = () => {
     if (!name.trim()) return
     if (client) {
-      saveClient({ ...client, name: name.trim(), pronouns: pronouns.trim(), setting, diagnoses })
+      // Only write the context back if it was edited, so a background refresh while the dialog is open isn't overwritten.
+      const edited = context !== (client.context ?? '')
+      saveClient({ ...client, name: name.trim(), pronouns: pronouns.trim(), setting, diagnoses, ...(edited ? { context } : {}) })
       onClose()
       return
     }
@@ -74,6 +79,21 @@ export function ClientModal({ client, initialName = '', onClose, onCreated }: {
         <Field label="Diagnosis (optional)" hint={client ? undefined : 'Optional. The intake’s diagnosis replaces it when you finalize.'}>
           <DiagnosisPicker value={diagnoses} onChange={setDiagnoses} />
         </Field>
+        {client && (
+          <div className="field">
+            <button type="button" className="link" onClick={() => setShowContext((v) => !v)}>
+              <ChevronDown size={13} className={showContext ? '' : 'rot-neg'} /> Clinical context
+            </button>
+            {showContext && (
+              <>
+                <span className="field-hint">
+                  A rolling summary Echo refreshes each time you finalize a note. It’s included (without the name) when generating notes. Edit anything that’s off.
+                </span>
+                <AutoTextarea className="context-edit" value={context} minRows={6} onChange={(e) => setContext(e.target.value)} placeholder="Nothing yet. This fills in after the first finalized note or treatment plan." />
+              </>
+            )}
+          </div>
+        )}
         {!client && (
           <Field label="Start with">
             <Segmented<ClientStart>

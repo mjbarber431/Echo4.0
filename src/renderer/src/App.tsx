@@ -14,6 +14,7 @@ import { ClientView } from './views/ClientView'
 import { NoteView } from './views/NoteView'
 import { SettingsView } from './views/SettingsView'
 import { LibraryView } from './views/LibraryView'
+import { DocumentView } from './views/DocumentView'
 import { ResourceViewer } from './components/ResourceViewer'
 import { Onboarding } from './views/Onboarding'
 
@@ -41,7 +42,8 @@ export function App() {
     } else navigate({ view: 'client', id: client.id, tab: 'plan' })
   }
 
-  const currentClientId = route.view === 'client' ? route.id : route.view === 'note' ? notes.find((n) => n.id === route.id)?.clientId : undefined
+  const currentClientId =
+    route.view === 'client' ? route.id : route.view === 'note' ? notes.find((n) => n.id === route.id)?.clientId : route.view === 'document' ? store.documents.find((d) => d.id === route.id)?.clientId : undefined
 
   // Menu commands from the main process. Note-level commands go to whichever view subscribed.
   const handleRef = useRef<(command: string) => void>(() => {})
@@ -98,6 +100,7 @@ export function App() {
         {route.view === 'note' && <NoteView noteId={route.id} />}
         {route.view === 'settings' && <SettingsView />}
         {route.view === 'library' && <LibraryView />}
+        {route.view === 'document' && <DocumentView key={route.id} docId={route.id} />}
       </main>
       {palette && (
         <CommandPalette mode={palette} onClose={() => setPalette(null)} onNewClient={(name) => setNewClient({ name })} onStartNote={startNote} />

@@ -4004,6 +4004,12 @@
      "file": ".echo/converted/8dfcc76d-3.pdf",
      "format": "pdf",
      "original": "ACBS/8dfcc76d/Core ACT Therapist session competencies list.xls"
+    },
+    {
+     "label": "core_competencies_self-rating_form.doc",
+     "file": ".echo/converted/8dfcc76d-4.pdf",
+     "format": "pdf",
+     "original": "ACBS/8dfcc76d/core_competencies_self-rating_form.doc"
     }
    ]
   },
@@ -5405,6 +5411,11 @@
      "label": "Overview",
      "file": "ACBS/601c4efc/page.html",
      "format": "html"
+    },
+    {
+     "label": "AFQ-Y.pdf",
+     "file": "ACBS/601c4efc/AFQ-Y.pdf",
+     "format": "pdf"
     }
    ]
   },
@@ -5563,6 +5574,11 @@
      "file": ".echo/converted/909e269e-0.pdf",
      "format": "pdf",
      "original": "ACBS/909e269e/CAMM 10-item Nov 08.doc"
+    },
+    {
+     "label": "CAMM.pdf",
+     "file": "ACBS/909e269e/CAMM.pdf",
+     "format": "pdf"
     }
    ]
   },
@@ -5759,6 +5775,16 @@
      "label": "Overview",
      "file": "ACBS/dfaa8a64/page.html",
      "format": "html"
+    },
+    {
+     "label": "Emotion Efficacy Scale (EES2)",
+     "file": "ACBS/dfaa8a64/Emotion Efficacy Scale (EES2)_0.pdf",
+     "format": "pdf"
+    },
+    {
+     "label": "EES2 with instructions",
+     "file": "ACBS/dfaa8a64/Emotion Efficacy Scale (EES2) + instructions.pdf",
+     "format": "pdf"
     }
    ]
   },
@@ -5815,6 +5841,11 @@
      "label": "Overview",
      "file": "ACBS/4149874a/page.html",
      "format": "html"
+    },
+    {
+     "label": "Fresco,2007.pdf",
+     "file": "ACBS/4149874a/Fresco,2007.pdf",
+     "format": "pdf"
     }
    ]
   },
@@ -5978,6 +6009,11 @@
      "label": "Overview",
      "file": "ACBS/17166369/page.html",
      "format": "html"
+    },
+    {
+     "label": "KIMS.pdf",
+     "file": "ACBS/17166369/KIMS.pdf",
+     "format": "pdf"
     }
    ]
   },
@@ -6191,6 +6227,12 @@
      "label": "Development and Validation of the Parental Acceptance Questionnaire.pdf",
      "file": "ACBS/c955ea96/Development and Validation of the Parental Acceptance Questionnaire.pdf",
      "format": "pdf"
+    },
+    {
+     "label": "6-paq.docx",
+     "file": ".echo/converted/c955ea96-1.pdf",
+     "format": "pdf",
+     "original": "ACBS/c955ea96/6-paq.docx"
     }
    ]
   },
@@ -6411,6 +6453,11 @@
      "label": "Overview",
      "file": "ACBS/fd2124d3/page.html",
      "format": "html"
+    },
+    {
+     "label": "SCS-SF-information.pdf",
+     "file": "ACBS/fd2124d3/SCS-SF-information.pdf",
+     "format": "pdf"
     }
    ]
   },
@@ -6456,6 +6503,11 @@
      "label": "Overview",
      "file": "ACBS/d1471b7d/page.html",
      "format": "html"
+    },
+    {
+     "label": "SCS-Youth-information.pdf",
+     "file": "ACBS/d1471b7d/SCS-Youth-information.pdf",
+     "format": "pdf"
     }
    ]
   },
@@ -6495,6 +6547,11 @@
      "label": "Overview",
      "file": "ACBS/73fea086/page.html",
      "format": "html"
+    },
+    {
+     "label": "SCS-State-information.pdf",
+     "file": "ACBS/73fea086/SCS-State-information.pdf",
+     "format": "pdf"
     }
    ]
   },
@@ -7994,6 +8051,21 @@
      "label": "Overview",
      "file": "ACBS/3396698c/page.html",
      "format": "html"
+    },
+    {
+     "label": "Values cards with images (any age)",
+     "file": "ACBS/3396698c/Values cards with images for any age Hayes Coyne.pdf",
+     "format": "pdf"
+    },
+    {
+     "label": "Values cards with questions (15+)",
+     "file": "ACBS/3396698c/Values cards with questions 15+ yrs Hayes Coyne.pdf",
+     "format": "pdf"
+    },
+    {
+     "label": "Values question cards",
+     "file": "ACBS/3396698c/Values qustion cards.pdf",
+     "format": "pdf"
     }
    ]
   },
@@ -8089,6 +8161,33 @@
      "label": "Overview",
      "file": "ACBS/9f187e8f/page.html",
      "format": "html"
+    },
+    {
+     "label": "ACT ADVISOR",
+     "file": "ACBS/9f187e8f/ACTADVISOR_0.pdf",
+     "format": "pdf"
+    },
+    {
+     "label": "Statement rating form",
+     "file": "ACBS/9f187e8f/ACT ADVISOR statement rating form.pdf",
+     "format": "pdf"
+    },
+    {
+     "label": "Rating form scoring",
+     "file": "ACBS/9f187e8f/ACT ADVISOR statement rating form - scoring instructions.pdf",
+     "format": "pdf"
+    },
+    {
+     "label": "Tracking charts",
+     "file": ".echo/converted/9f187e8f-3.pdf",
+     "format": "pdf",
+     "original": "ACBS/9f187e8f/ACT ADVISOR Psychological Flexibility Measure Charts.doc"
+    },
+    {
+     "label": "ACT ADVISOR (Word)",
+     "file": ".echo/converted/9f187e8f-4.pdf",
+     "format": "pdf",
+     "original": "ACBS/9f187e8f/ACT ADVISOR Psychological Flexibility Measure.doc"
     }
    ]
   },
@@ -8310,6 +8409,11 @@
      "file": ".echo/converted/0cf0552f-0.pdf",
      "format": "pdf",
      "original": "ACBS/0cf0552f/Introducing_acceptance_and_commitment_therapy.doc"
+    },
+    {
+     "label": "Dr_Russ_Harris_-_A_Non-technical_Overview_of_ACT.pdf",
+     "file": "ACBS/0cf0552f/Dr_Russ_Harris_-_A_Non-technical_Overview_of_ACT.pdf",
+     "format": "pdf"
     }
    ]
   },

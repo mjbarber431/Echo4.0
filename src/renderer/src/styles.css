@@ -1673,9 +1673,13 @@ input[type='checkbox'] {
   background: var(--surface-3);
   color: var(--text-2);
 }
-.tab-badge.warn {
-  background: var(--warn-soft);
-  color: var(--warn);
+.tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  align-self: flex-start;
+  margin: 3px 0 0 -3px;
 }
 .tab-content {
   flex: 1;
@@ -1822,12 +1826,6 @@ input[type='checkbox'] {
 .note-actions:has(.copied),
 .note-row:has(.chip-warn) .note-actions {
   opacity: 1;
-}
-.context-tab {
-  max-width: 760px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
 }
 .explainer h3 {
   font-size: 15px;
@@ -4196,6 +4194,45 @@ input[type='checkbox'] {
   border-color: rgba(255, 255, 255, 0.35);
   color: inherit;
 }
+/* A reference with its Assign button, joined into one pill. */
+.res-chip-wrap {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+  margin: 1px 2px;
+  vertical-align: baseline;
+}
+.res-chip-wrap .res-chip {
+  margin: 0;
+  border-radius: 6px 0 0 6px;
+  min-width: 0;
+}
+.res-assign {
+  flex: none;
+  padding: 1px 8px 2px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-family: var(--font);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.res-assign:hover {
+  filter: brightness(1.08);
+}
+.res-assign.done {
+  background: var(--surface);
+  color: var(--text-2);
+  font-weight: 500;
+}
+.res-assign.done::before {
+  content: '✓ ';
+  color: var(--accent);
+}
 .res-kind {
   font-size: 10px;
   font-weight: 600;
@@ -4596,4 +4633,665 @@ input[type='checkbox'] {
 .viewer-media.web {
   max-width: 520px;
   margin: 0 auto;
+}
+
+/* ==========================================================================
+   Client documents
+   ========================================================================== */
+.docs-tab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 860px;
+  min-height: 100%;
+}
+.docs-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.docs-head p {
+  flex: 1;
+  font-size: 12.5px;
+  margin: 0;
+}
+.docs-head .row {
+  flex: none;
+}
+.docs-drop {
+  position: absolute;
+  inset: -8px;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent-soft) 70%, var(--bg));
+  color: var(--accent);
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 5;
+}
+.doc-row {
+  gap: 12px;
+  padding-left: 6px;
+}
+.lib-icon.kind-file {
+  background: var(--surface-3);
+}
+.chip-score {
+  background: color-mix(in srgb, #4a7fc1 13%, transparent);
+  color: #3f6fae;
+  font-variant-numeric: tabular-nums;
+}
+.doc-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.doc-drag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 2px;
+  border-radius: 6px;
+  color: var(--text-3);
+  cursor: grab;
+  opacity: 0.45;
+  transition: opacity 0.12s, background 0.12s;
+}
+.doc-row:hover .doc-drag {
+  opacity: 1;
+}
+.doc-drag:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.doc-drag.labeled {
+  opacity: 1;
+  padding: 5px 10px 5px 6px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* Assigning from the Library */
+.assign-search {
+  width: 100%;
+  margin: 0 0 10px;
+}
+.assign-filters {
+  padding: 0 0 10px;
+  margin-bottom: 4px;
+  gap: 5px;
+}
+.assign-filters button {
+  font-size: 12px;
+  padding: 2px 10px;
+}
+.assign-list {
+  max-height: min(56vh, 520px);
+  overflow: auto;
+  margin: 0 -6px;
+}
+.assign-list h5 {
+  margin: 12px 8px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+.assign-list h5:first-child {
+  margin-top: 2px;
+}
+.assign-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+}
+.assign-row:hover {
+  background: var(--surface-2);
+}
+.assign-row .btn {
+  min-width: 84px;
+  justify-content: center;
+}
+.assign-empty {
+  padding: 16px 8px;
+}
+.assign-menu {
+  width: 260px;
+  top: 34px;
+}
+.assign-menu input {
+  margin-bottom: 4px;
+  padding: 6px 9px;
+}
+.assign-menu p {
+  padding: 6px 9px;
+  font-size: 12.5px;
+}
+.menu-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* The document page */
+.doc-head {
+  gap: 8px;
+  padding-left: 14px;
+}
+.app.no-sidebar .doc-head {
+  padding-left: 84px;
+}
+.doc-title {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.doc-title .lib-meta {
+  padding-left: 7px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+input.doc-title-input {
+  font-size: 15px;
+  font-weight: 600;
+  border-color: transparent;
+  background: none;
+  padding: 1px 6px;
+  max-width: 520px;
+  text-overflow: ellipsis;
+}
+input.doc-title-input:hover {
+  border-color: var(--border);
+}
+.doc-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.doc-score input {
+  width: 92px;
+  padding: 5px 8px;
+  font-variant-numeric: tabular-nums;
+}
+.doc-body {
+  flex-direction: column;
+}
+.doc-gone {
+  padding: 24px;
+}
+/* A Library resource's tabs within the client's document. */
+.doc-parts {
+  padding: 8px 20px 8px 24px;
+}
+/* Pages to save, preview and drag out. */
+.menu.export-pages {
+  width: 300px;
+  max-height: 60vh;
+  overflow: auto;
+  padding: 10px 12px;
+  font-size: 12.5px;
+}
+.export-pages > p {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+}
+.export-group + .export-group {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.export-pages label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.export-section {
+  font-weight: 500;
+}
+.export-section span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.export-page-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 5px 0 0 22px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.menu button.export-all {
+  margin-top: 8px;
+  color: var(--accent);
+}
+.doc-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 8px 18px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+}
+.doc-banner span {
+  flex: 1;
+}
+
+/* The editor */
+.doc-editor {
+  --page-bg: color-mix(in srgb, var(--surface-3) 70%, var(--bg));
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.doc-toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+.doc-toolbar-gap {
+  flex: 1;
+}
+.doc-tools,
+.doc-style,
+.doc-zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.doc-style {
+  gap: 4px;
+}
+.doc-zoom {
+  margin-left: auto;
+}
+.doc-actions {
+  display: flex;
+  gap: 6px;
+}
+.doc-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border-strong);
+  margin: 0 6px;
+}
+.doc-tool {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--text-2);
+}
+.doc-tool:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.doc-tool.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.doc-tool:disabled {
+  opacity: 0.35;
+}
+.doc-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.doc-swatch span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.doc-swatch.on {
+  border-color: currentColor;
+}
+select.doc-size {
+  width: auto;
+  padding: 4px 6px;
+  font-size: 12.5px;
+  margin-left: 4px;
+}
+.doc-zoom-value {
+  min-width: 52px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.doc-zoom-value:hover {
+  background: var(--surface-2);
+}
+.doc-sign-menu {
+  left: 0;
+  right: auto;
+  width: 240px;
+}
+.doc-sign-menu button {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.doc-sign-menu button.on {
+  background: var(--surface-2);
+}
+.doc-sign-menu img {
+  max-height: 34px;
+  max-width: 180px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 4px;
+}
+.doc-sign-menu span {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.doc-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--page-bg);
+}
+.doc-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 24px 24px 80px;
+  width: max-content;
+  min-width: 100%;
+}
+.doc-loading,
+.doc-error {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-3);
+}
+.doc-error {
+  color: var(--error);
+}
+.doc-page {
+  position: relative;
+  flex: none;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 6px 24px rgba(0, 0, 0, 0.08);
+  touch-action: none;
+  user-select: none;
+  /* The page is paper: its contents never follow dark mode. */
+  color-scheme: light;
+}
+.doc-canvas,
+.doc-ink,
+.doc-fields {
+  position: absolute;
+  inset: 0;
+}
+.doc-ink {
+  pointer-events: none;
+  overflow: visible;
+}
+.doc-hl {
+  fill: rgb(255 227 64 / 0.45);
+  mix-blend-mode: multiply;
+}
+.doc-fields {
+  pointer-events: none;
+}
+
+/* Cursors follow the tool. */
+.tool-text .doc-page,
+.tool-stamp .doc-page {
+  cursor: text;
+}
+.tool-check .doc-page,
+.tool-cross .doc-page,
+.tool-circle .doc-page,
+.tool-draw .doc-page,
+.tool-highlight .doc-page,
+.tool-sign .doc-page {
+  cursor: crosshair;
+}
+.tool-erase .doc-page {
+  cursor: cell;
+}
+
+/* Form fields drawn over the page as real inputs. */
+.doc-page .doc-field {
+  position: absolute;
+  pointer-events: auto;
+  margin: 0;
+  padding: 0 3px;
+  border: none;
+  border-radius: 2px;
+  background: rgb(214 228 255 / 0.55);
+  color: #111;
+  font-family: Helvetica, Arial, sans-serif;
+  line-height: 1.15;
+  box-shadow: none;
+  min-height: 0;
+}
+.doc-page textarea.doc-field {
+  padding: 2px 3px;
+  resize: none;
+}
+.doc-page .doc-field:hover {
+  background: rgb(190 212 255 / 0.7);
+}
+.doc-page .doc-field:focus {
+  background: #fff;
+  box-shadow: 0 0 0 2px rgb(60 110 220 / 0.6);
+}
+.doc-page .doc-field.passive {
+  pointer-events: none;
+}
+.doc-page .doc-field:disabled {
+  opacity: 1;
+  background: none;
+}
+.doc-page button.field-checkbox,
+.doc-page button.field-radio {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #111;
+}
+.doc-page button.field-radio {
+  border-radius: 50%;
+}
+.doc-page button.field-checkbox.on,
+.doc-page button.field-radio.on {
+  background: #fff;
+}
+.field-radio .dot {
+  width: 55%;
+  height: 55%;
+  border-radius: 50%;
+  background: #111;
+}
+.doc-page select.doc-field {
+  padding: 0 2px;
+}
+
+/* Marks: text and signatures are shown here; everything gets a box for selecting and moving. */
+.doc-mark {
+  position: absolute;
+  border-radius: 2px;
+}
+.tool-select .doc-mark,
+.tool-erase .doc-mark,
+.tool-text .mark-text {
+  cursor: move;
+}
+.tool-erase .doc-mark {
+  cursor: cell;
+}
+.tool-erase .doc-mark:hover {
+  outline: 1.5px dashed var(--error);
+}
+.tool-text .mark-text {
+  cursor: text;
+}
+.tool-check .doc-mark,
+.tool-cross .doc-mark,
+.tool-circle .doc-mark,
+.tool-draw .doc-mark,
+.tool-highlight .doc-mark,
+.tool-sign .doc-mark,
+.tool-stamp .doc-mark,
+.tool-text .doc-mark:not(.mark-text),
+.tool-none .doc-mark {
+  pointer-events: none;
+}
+.tool-select .doc-mark:hover {
+  outline: 1px dashed rgb(60 110 220 / 0.55);
+}
+.doc-mark.selected {
+  outline: 1.5px solid rgb(60 110 220 / 0.9);
+  outline-offset: 1px;
+}
+.doc-text {
+  display: block;
+  white-space: pre;
+  font-family: Helvetica, Arial, sans-serif;
+}
+.mark-signature img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+.doc-handle {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: #fff;
+  border: 1.5px solid rgb(60 110 220);
+  cursor: nwse-resize;
+}
+.doc-page textarea.doc-text-edit {
+  position: absolute;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: rgb(255 255 255 / 0.85);
+  outline: 1.5px solid rgb(60 110 220 / 0.9);
+  outline-offset: 1px;
+  box-shadow: none;
+  font-family: Helvetica, Arial, sans-serif;
+  white-space: pre;
+  overflow: hidden;
+  resize: none;
+  min-width: 40px;
+}
+
+/* ==========================================================================
+   Presentation window: the document alone, for sharing on screen
+   ========================================================================== */
+html.present body {
+  background: var(--bg);
+}
+.present-root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.present-head {
+  flex: none;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px 0 88px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.present-head h1 {
+  flex: 1;
+  min-width: 0;
+  font-size: 14.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.present-actions {
+  display: flex;
+  gap: 6px;
+}
+.doc-editor.presenting .doc-toolbar {
+  justify-content: center;
+  padding: 8px 14px;
+}
+.doc-editor.presenting .doc-zoom {
+  margin-left: 12px;
+}
+.doc-editor.presenting .doc-tool {
+  width: 36px;
+  height: 36px;
+}
+.doc-editor.presenting .doc-pages {
+  gap: 24px;
+  padding: 28px 24px 120px;
+}
+
+/* Document rows have a menu, which the group's clipping would hide. */
+.docs-tab .note-group-rows {
+  overflow: visible;
+}
+.docs-tab .note-group-rows > .doc-row:first-child {
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.docs-tab .note-group-rows > .doc-row:last-child {
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.docs-tab .note-group-rows > .doc-row:only-child {
+  border-radius: var(--radius);
+}
+/* An open menu keeps its row's actions showing, and the last row's opens upward so it stays on screen. */
+.doc-row .note-actions:has(.menu) {
+  opacity: 1;
+}
+.doc-row:last-child:not(:first-child) .doc-actions-row .menu {
+  top: auto;
+  bottom: 32px;
 }

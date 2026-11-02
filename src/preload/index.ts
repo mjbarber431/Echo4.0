@@ -1,7 +1,7 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { ChatEvent } from '../shared/chat'
 import type { LiveEvent } from '../shared/coach'
-import type { EchoApi, MobileLinkStatus, MobileMemo, TranscriberStatus, UpdateStatus } from '../shared/types'
+import type { DocumentEvent, EchoApi, MobileLinkStatus, MobileMemo, TranscriberStatus, UpdateStatus } from '../shared/types'
 
 const api: EchoApi = {
   getState: () => ipcRenderer.invoke('state:get'),
@@ -66,6 +66,29 @@ const api: EchoApi = {
   openResourceApp: (id, part) => ipcRenderer.invoke('resource:app', id, part),
   quickLookResource: (id, part) => ipcRenderer.invoke('resource:quicklook', id, part),
   revealResource: (id) => ipcRenderer.send('resource:reveal', id),
+  assignDocument: (clientId, resourceId) => ipcRenderer.invoke('doc:assign', clientId, resourceId),
+  chooseDocumentFiles: (clientId) => ipcRenderer.invoke('doc:choose-files', clientId),
+  addDocumentFiles: (clientId, paths) => ipcRenderer.invoke('doc:add-files', clientId, paths),
+  pathForFile: (file) => webUtils.getPathForFile(file),
+  saveDocument: (doc, undoable) => ipcRenderer.invoke('doc:save', doc, undoable),
+  documentHistory: (id) => ipcRenderer.invoke('doc:history', id),
+  undoDocument: (id) => ipcRenderer.invoke('doc:undo', id),
+  redoDocument: (id) => ipcRenderer.invoke('doc:redo', id),
+  deleteDocument: (id) => ipcRenderer.invoke('doc:delete', id),
+  documentBytes: (id) => ipcRenderer.invoke('doc:bytes', id),
+  exportDocument: (id) => ipcRenderer.invoke('doc:export', id),
+  openDocument: (id) => ipcRenderer.invoke('doc:open', id),
+  prepareDocumentDrag: (id) => ipcRenderer.invoke('doc:prepare-drag', id),
+  dragDocument: (id) => ipcRenderer.send('doc:drag', id),
+  presentDocument: (id, tab) => ipcRenderer.invoke('doc:present', id, tab),
+  stopPresenting: (id) => ipcRenderer.send('doc:stop-presenting', id),
+  onDocument: (handler) => {
+    const listener = (_e: Electron.IpcRendererEvent, event: DocumentEvent) => handler(event)
+    ipcRenderer.on('document', listener)
+    return () => ipcRenderer.removeListener('document', listener)
+  },
+  saveLetterToDocuments: (letter, clientId) => ipcRenderer.invoke('doc:from-letter', letter, clientId),
+  savePlanToDocuments: (clientId) => ipcRenderer.invoke('doc:from-plan', clientId),
   copy: (text, html) => ipcRenderer.invoke('clipboard:write', text, html),
   canUseTouchId: () => ipcRenderer.invoke('lock:available'),
   unlock: () => ipcRenderer.invoke('lock:unlock'),

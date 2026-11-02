@@ -1,6 +1,7 @@
 import { app, safeStorage } from 'electron'
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { DEFAULT_CLIENT_SETTING, noteSortKey } from '../shared/compliance'
 import { backfillDiagnoses } from '../shared/diagnosis'
@@ -9,6 +10,7 @@ import { isLegacyBackup } from './legacyBackup'
 import type { LinkPairing } from './link'
 import type { Letterhead } from '../shared/letter'
 import type { ChatThread } from '../shared/chat'
+import type { ClientDocument } from '../shared/documents'
 
 // All client data lives in one AES-256-GCM encrypted file. The data key is
 // random and itself encrypted with the macOS Keychain via Electron safeStorage,
@@ -32,6 +34,8 @@ export interface VaultData {
   letterhead?: Letterhead
   /** Ask Claude conversations, per client. Not part of the record. */
   chats: ChatThread[]
+  /** Clients' documents. Their PDFs are separate encrypted files (Vault.writeFile). */
+  documents: ClientDocument[]
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -82,6 +86,8 @@ function migrateClient(c: Client, notes: Note[]): Client {
 
 const MAGIC = Buffer.from('ECHO1')
 const BACKUP_MAGIC = Buffer.from('ECHOBK1')
+const FILE_MAGIC = Buffer.from('ECHOF1')
+const FILE_ID = /^[0-9a-f-]{36}$/
 const BACKUPS_KEPT = 14
 
 function encrypt(key: Buffer, plaintext: Buffer, magic: Buffer, extra = Buffer.alloc(0)): Buffer {
@@ -111,6 +117,59 @@ export class Vault {
     this.key = this.loadKey()
     this.data = this.load()
     this.dailyBackup()
+    this.collectFiles()
+  }
+
+  // ---------------------------------------------------------------------------
+  // Document files: each PDF in its own file, encrypted with the vault's key, so
+  // saving the vault never rewrites them. They're written once and never changed.
+  // ---------------------------------------------------------------------------
+
+  private get filesDir(): string {
+    return join(this.dir, 'documents')
+  }
+
+  private filePath(id: string): string {
+    if (!FILE_ID.test(id)) throw new Error('Not a document file.')
+    return join(this.filesDir, `${id}.bin`)
+  }
+
+  /** Stores a file and returns its ID. */
+  writeFile(bytes: Uint8Array): string {
+    mkdirSync(this.filesDir, { recursive: true, mode: 0o700 })
+    const id = randomUUID()
+    const tmp = `${this.filePath(id)}.tmp`
+    writeFileSync(tmp, encrypt(this.key, Buffer.from(bytes), FILE_MAGIC), { mode: 0o600 })
+    renameSync(tmp, this.filePath(id))
+    return id
+  }
+
+  readFile(id: string): Buffer {
+    const path = this.filePath(id)
+    if (!existsSync(path)) throw new Error('This document’s file is missing. Restore a backup to get it back.')
+    const blob = readFileSync(path)
+    if (!blob.subarray(0, FILE_MAGIC.length).equals(FILE_MAGIC)) throw new Error('Unrecognized document file.')
+    return decrypt(this.key, blob, FILE_MAGIC.length)
+  }
+
+  /**
+   * Removes files no document uses any more, once they're older than the oldest daily snapshot,
+   * so restoring a snapshot still finds the files it refers to.
+   */
+  private collectFiles(): void {
+    if (!existsSync(this.filesDir)) return
+    const used = new Set(this.data.documents.map((d) => d.file))
+    const cutoff = Date.now() - BACKUPS_KEPT * 86_400_000
+    for (const name of readdirSync(this.filesDir)) {
+      const id = name.replace(/\.bin(\.tmp)?$/, '')
+      if (used.has(id)) continue
+      const path = join(this.filesDir, name)
+      try {
+        if (statSync(path).mtimeMs < cutoff) unlinkSync(path)
+      } catch {
+        // Gone already.
+      }
+    }
   }
 
   private get vaultPath(): string {
@@ -135,7 +194,7 @@ export class Vault {
 
   private load(): VaultData {
     if (!existsSync(this.vaultPath)) {
-      return { version: 1, settings: { ...DEFAULT_SETTINGS }, apiKey: '', clients: [], notes: [], inbox: [], link: null, receivedMemoIds: [], diagnosesBackfilled: true, chats: [] }
+      return { version: 1, settings: { ...DEFAULT_SETTINGS }, apiKey: '', clients: [], notes: [], inbox: [], link: null, receivedMemoIds: [], diagnosesBackfilled: true, chats: [], documents: [] }
     }
     const blob = readFileSync(this.vaultPath)
     if (!blob.subarray(0, MAGIC.length).equals(MAGIC)) throw new Error('Unrecognized vault file.')
@@ -155,7 +214,8 @@ export class Vault {
       receivedMemoIds: raw.receivedMemoIds ?? [],
       diagnosesBackfilled: true,
       letterhead: raw.letterhead,
-      chats: raw.chats ?? []
+      chats: raw.chats ?? [],
+      documents: raw.documents ?? []
     }
   }
 
@@ -189,7 +249,17 @@ export class Vault {
   exportBackup(passphrase: string): Buffer {
     const salt = randomBytes(16)
     const key = scryptSync(passphrase, salt, 32, { N: 2 ** 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 })
-    return encrypt(key, Buffer.from(JSON.stringify(this.data), 'utf8'), BACKUP_MAGIC, salt)
+    // Document files travel inside the backup, so it restores everything on its own.
+    const files: Record<string, string> = {}
+    for (const doc of this.data.documents) {
+      if (files[doc.file]) continue
+      try {
+        files[doc.file] = this.readFile(doc.file).toString('base64')
+      } catch {
+        // A missing file can't be backed up; the rest still is.
+      }
+    }
+    return encrypt(key, Buffer.from(JSON.stringify({ ...this.data, files }), 'utf8'), BACKUP_MAGIC, salt)
   }
 
   importBackup(blob: Buffer, passphrase: string): void {
@@ -203,7 +273,18 @@ export class Vault {
     } catch {
       throw new Error('Wrong passphrase, or the backup file is damaged.')
     }
-    this.data = this.normalize(JSON.parse(plain.toString('utf8')))
+    const { files = {}, ...data } = JSON.parse(plain.toString('utf8')) as VaultData & { files?: Record<string, string> }
+    const restored = this.normalize(data)
+    // Each file is written under a new ID, so nothing already on this Mac is overwritten.
+    const ids = new Map<string, string>()
+    restored.documents = restored.documents.flatMap((doc) => {
+      if (!ids.has(doc.file)) {
+        if (!files[doc.file]) return []
+        ids.set(doc.file, this.writeFile(Buffer.from(files[doc.file], 'base64')))
+      }
+      return [{ ...doc, file: ids.get(doc.file)! }]
+    })
+    this.data = restored
     this.flush()
   }
 }

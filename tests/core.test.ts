@@ -5,7 +5,7 @@ import { buildAmendMessages, buildNoteMessages, buildPlanMessages, NOTE_SCHEMA, 
 import { cleanBody, noteToHtml, noteToText, planToDocumentHtml } from '../src/shared/format'
 import { applyAiResult, applyAmendResult, finalizeClient } from '../src/shared/finalize'
 import { backfillDiagnoses, diagnosesInSections, noteDiagnoses } from '../src/shared/diagnosis'
-import { buildQueue, isModelFailure, nextModelUp, queueCount, suggestModel } from '../src/shared/queue'
+import { buildPlanQueue, buildQueue, isModelFailure, nextModelUp, queueCount, suggestModel } from '../src/shared/queue'
 import { COVERAGE_MODEL, coverage, parseReply, type MessageReply } from '../src/main/ai'
 import { migrateApiKey, migrateSettings } from '../src/main/vault'
 import { applyLive, coachInput, coachItems, emptyLive, liveText, nextCoverage, takeDone, type LiveEvent } from '../src/shared/coach'
@@ -492,6 +492,26 @@ describe('queue', () => {
     const q = buildQueue([note], [makeClient()], { [note.id]: { kind: 'amend', stage: 'writing', startedAt: 1, error: 'x' } }, '2026-10-19')
     expect(q.failed).toEqual([])
     expect(q.uncopied).toEqual([note])
+  })
+
+  it('queues treatment plans being drafted, failed and waiting for review alongside notes', () => {
+    const clients = ['drafting', 'failed', 'ready-late', 'ready-early', 'idle'].map((id) => ({ ...makeClient(), id }))
+    const p = buildPlanQueue(
+      clients,
+      {
+        drafting: { stage: 'writing', startedAt: 1, updating: false, dictation: '' },
+        failed: { stage: 'writing', startedAt: 2, updating: true, dictation: 'x', error: 'Network down' }
+      },
+      {
+        'ready-late': { reviewItems: [], updated: false, finishedAt: 20, unseen: true },
+        'ready-early': { reviewItems: ['Check goal 2'], updated: true, finishedAt: 10, unseen: false }
+      }
+    )
+    const ids = (list: { id: string }[]) => list.map((c) => c.id)
+    expect(ids(p.writing)).toEqual(['drafting'])
+    expect(ids(p.failed)).toEqual(['failed'])
+    expect(ids(p.ready)).toEqual(['ready-early', 'ready-late'])
+    expect(queueCount(buildQueue([], clients, {}), p)).toBe(3)
   })
 })
 

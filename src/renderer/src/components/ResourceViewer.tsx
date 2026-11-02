@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { AppWindow, ArrowUpRight, Eye, FolderOpen, Globe, Layers, X } from 'lucide-react'
-import { KIND_LABEL, partUrl, resourceById, resourceWhere, type Resource, type ResourcePart } from '@shared/resources'
+import { KIND_LABEL, partLabel, partUrl, resourceById, resourceWhere, type Resource, type ResourcePart } from '@shared/resources'
 import { api, errorMessage } from '../lib/util'
 import { useStore } from '../store'
 import { KIND_ICON } from '../views/LibraryView'
 import { Button } from './ui'
+import { AssignToClient } from './Documents'
+import { canAssign } from '@shared/documents'
 
 const APP_FOR: Record<string, string> = { pdf: 'Preview', doc: 'Word', docx: 'Word', rtf: 'TextEdit', ppt: 'Keynote', pptx: 'Keynote', xls: 'Numbers', xlsx: 'Numbers', mp3: 'Music', m4a: 'Music' }
 const extOf = (file: string) => file.split('.').pop()?.toLowerCase() ?? ''
@@ -49,6 +51,7 @@ export function ResourceViewer() {
             </div>
           </div>
           <div className="viewer-actions">
+            {canAssign(r) && <AssignToClient resourceId={r.id} />}
             {parent && (
               <Button size="sm" variant="ghost" icon={<Layers size={14} />} onClick={() => viewResource(parent.id)} title={`Open all of ${parent.title}`}>
                 Whole document
@@ -79,7 +82,7 @@ export function ResourceViewer() {
           <nav className="viewer-parts">
             {parts.map((p, i) => (
               <button key={i} className={i === index ? 'on' : ''} onClick={() => setIndex(i)} title={p.label}>
-                {p.label === 'Overview' ? 'Overview' : p.label.replace(/\.[a-z0-9]+$/i, '').replace(/[_]+/g, ' ')}
+                {partLabel(p)}
                 {p.format !== 'html' && <span>{extOf(p.original ?? p.file)}</span>}
               </button>
             ))}

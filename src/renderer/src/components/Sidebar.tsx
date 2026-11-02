@@ -1,21 +1,24 @@
 import { useMemo, useState } from 'react'
 import { BookOpen, ChevronRight, Inbox, Plus, Search, Settings as Gear } from 'lucide-react'
 import { todayISO } from '@shared/compliance'
-import { buildQueue, queueCount } from '@shared/queue'
+import { buildPlanQueue, buildQueue, queueCount } from '@shared/queue'
 import { useStore } from '../store'
 import { Avatar, Kbd } from './ui'
 import { ActivityPanel } from './ActivityPanel'
 import { UpdateBadge } from './UpdateBadge'
 
 export function Sidebar({ onNewClient, onFind }: { onNewClient(): void; onFind(): void }) {
-  const { clients, notes, inbox, jobs, route, navigate } = useStore()
+  const { clients, notes, inbox, jobs, planJobs, planDrafts, route, navigate } = useStore()
   const [showDischarged, setShowDischarged] = useState(false)
   const today = todayISO()
 
   const drafts = useMemo(() => new Set(notes.filter((n) => n.status === 'draft').map((n) => n.clientId)), [notes])
   const seenToday = useMemo(() => new Set(notes.filter((n) => n.session.date === today).map((n) => n.clientId)), [notes, today])
-  const writing = useMemo(() => new Set(notes.filter((n) => jobs[n.id] && !jobs[n.id].error).map((n) => n.clientId)), [notes, jobs])
-  const waiting = useMemo(() => queueCount(buildQueue(notes, clients, jobs)), [notes, clients, jobs]) + inbox.length
+  const writing = useMemo(
+    () => new Set([...notes.filter((n) => jobs[n.id] && !jobs[n.id].error).map((n) => n.clientId), ...Object.keys(planJobs).filter((id) => !planJobs[id].error)]),
+    [notes, jobs, planJobs]
+  )
+  const waiting = useMemo(() => queueCount(buildQueue(notes, clients, jobs), buildPlanQueue(clients, planJobs, planDrafts)), [notes, clients, jobs, planJobs, planDrafts]) + inbox.length
 
   const sorted = useMemo(() => [...clients].sort((a, b) => a.name.localeCompare(b.name)), [clients])
   const active = sorted.filter((c) => c.status === 'active')
@@ -27,7 +30,7 @@ export function Sidebar({ onNewClient, onFind }: { onNewClient(): void; onFind()
     <button key={c.id} className={`side-item ${activeId === c.id ? 'active' : ''}`} onClick={() => navigate({ view: 'client', id: c.id })}>
       <Avatar id={c.id} name={c.name} size={24} />
       <span className="side-name">{c.name}</span>
-      {writing.has(c.id) ? <span className="dot dot-writing" title="Writing note" /> : drafts.has(c.id) ? <span className="dot dot-draft" title="Draft note" /> : seenToday.has(c.id) ? <span className="dot dot-done" title="Seen today" /> : null}
+      {writing.has(c.id) ? <span className="dot dot-writing" title="Writing" /> : drafts.has(c.id) ? <span className="dot dot-draft" title="Draft note" /> : seenToday.has(c.id) ? <span className="dot dot-done" title="Seen today" /> : null}
     </button>
   )
 

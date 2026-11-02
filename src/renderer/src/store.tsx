@@ -1,18 +1,20 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { AppState, Client, MobileMemo, Note, NoteType, PublicSettings, Settings } from '@shared/types'
+import type { ClientDocument } from '@shared/documents'
 import { NOTE_TYPE_LABEL } from '@shared/types'
 import { DEFAULT_CLIENT_SETTING, defaultAttestations, defaultSession } from '@shared/compliance'
-import { applyAiResult, applyAmendResult, applyContextRebuild, needsContextRebuild } from '@shared/finalize'
-import { isModelFailure, type NoteJob } from '@shared/queue'
+import { applyAiResult, applyAmendResult, applyContextRebuild, applyPlanResult, needsContextRebuild } from '@shared/finalize'
+import { isModelFailure, type NoteJob, type PlanDraft, type PlanJob } from '@shared/queue'
 import { memoToNote, type ClientMatch } from '@shared/mobile'
 import { api, errorMessage, nowISO, uid } from './lib/util'
 
-export type ClientTab = 'notes' | 'plan' | 'context' | 'scratchpad' | 'ask'
+export type ClientTab = 'notes' | 'plan' | 'documents' | 'scratchpad' | 'ask'
 
 export type Route =
   | { view: 'queue' }
   | { view: 'client'; id: string; tab?: ClientTab }
   | { view: 'note'; id: string }
+  | { view: 'document'; id: string }
   | { view: 'settings' }
   | { view: 'library' }
 
@@ -54,6 +56,15 @@ interface Store {
   saveNote(note: Note): Promise<void>
   createNote(clientId: string, type: NoteType): Note
   deleteNote(id: string): void
+  /** Clients' documents: Library items assigned to them, added files, letters and plans. */
+  documents: ClientDocument[]
+  /** Adds documents the main process created. */
+  addDocuments(docs: ClientDocument[]): void
+  /** `undoable`: a change to marks or fields that Undo can take back. */
+  saveDocument(doc: ClientDocument, undoable?: boolean): void
+  deleteDocument(id: string): void
+  /** Documents open in a presentation window. */
+  presenting: string[]
   /** Recordings from the iPhone waiting for their client to be confirmed. */
   inbox: MobileMemo[]
   /** Give a recording to its client as a draft, and start writing it unless `write` is false. Returns the note. */
@@ -74,6 +85,18 @@ interface Store {
   amendNote(noteId: string, flagged: string[], answer: string | Promise<string>): void
   retryJob(noteId: string): void
   dismissJob(noteId: string): void
+  /** Treatment plans being drafted (or that failed to), by client ID. Like notes, they keep going when the clinician leaves. */
+  planJobs: Record<string, PlanJob>
+  /** Drafted plans waiting for the clinician to look them over, by client ID. */
+  planDrafts: Record<string, PlanDraft>
+  /** Draft or update the client's plan from `dictation` (empty: from the record). A promise while its transcript is still finishing. */
+  draftPlan(clientId: string, dictation: string | Promise<string>): void
+  retryPlan(clientId: string): void
+  dismissPlanJob(clientId: string): void
+  /** The plan was opened: it's no longer new, though it still waits for review. */
+  markPlanSeen(clientId: string): void
+  /** The clinician has looked over the drafted plan. */
+  clearPlanDraft(clientId: string): void
   amends: Record<string, Amended>
   setAmended(noteId: string, amended: Amended | null): void
   /** Notes that finished in the background and haven't been opened since. */
@@ -115,6 +138,8 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
   const [clients, setClientsState] = useState(initial.clients)
   const [notes, setNotesState] = useState(initial.notes)
   const [inbox, setInbox] = useState(initial.inbox)
+  const [documents, setDocuments] = useState(initial.documents)
+  const [presenting, setPresenting] = useState<string[]>([])
   const [route, setRouteState] = useState<Route>({ view: 'queue' })
   const [jobs, setJobsState] = useState<Record<string, NoteJob>>({})
   const [amends, setAmends] = useState<Record<string, Amended>>({})
@@ -123,6 +148,8 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
   const [noteSidebar, setNoteSidebar] = useState(false)
   const [viewing, setViewing] = useState<string | null>(null)
   const [rewrites, setRewrites] = useState<Record<string, Rewrites>>({})
+  const [planJobs, setPlanJobsState] = useState<Record<string, PlanJob>>({})
+  const [planDrafts, setPlanDrafts] = useState<Record<string, PlanDraft>>({})
   const handlers = useRef(new Map<string, Set<() => void>>())
   /** Context rebuilds in flight, by client ID, so two notes for one client share one. */
   const rebuilds = useRef(new Map<string, Promise<void>>())
@@ -133,6 +160,7 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
   const clientsRef = useRef(clients)
   const routeRef = useRef(route)
   const jobsRef = useRef(jobs)
+  const planJobsRef = useRef(planJobs)
   /** Bumped when a backup restore replaces everything, so jobs started before it are dropped. */
   const epoch = useRef(0)
   const setNotes = useCallback((fn: (ns: Note[]) => Note[]) => {
@@ -154,17 +182,24 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
     jobsRef.current = next
     setJobsState(next)
   }, [])
+  const setPlanJob = useCallback((clientId: string, job: PlanJob | null) => {
+    const next = { ...planJobsRef.current }
+    if (job) next[clientId] = job
+    else delete next[clientId]
+    planJobsRef.current = next
+    setPlanJobsState(next)
+  }, [])
 
   // Quitting mid-job loses audio that hasn't been transcribed yet, so the main process asks first.
   useEffect(() => {
-    if (!Object.values(jobs).some((j) => !j.error)) return
+    if (![...Object.values(jobs), ...Object.values(planJobs)].some((j) => !j.error)) return
     const hold = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = ''
     }
     window.addEventListener('beforeunload', hold)
     return () => window.removeEventListener('beforeunload', hold)
-  }, [jobs])
+  }, [jobs, planJobs])
 
   const markSeen = useCallback(
     (noteId: string) =>
@@ -197,6 +232,17 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
         if (added) toast(added === 1 ? 'A recording arrived from your iPhone' : `${added} recordings arrived from your iPhone`, 'success', { label: 'Show', run: () => setRoute({ view: 'queue' }) })
       }),
     [toast, setRoute]
+  )
+
+  // Marks made in a presentation window arrive here, so the main window stays in step.
+  useEffect(
+    () =>
+      api().onDocument((event) => {
+        if ('presenting' in event) setPresenting(event.presenting)
+        else if ('deleted' in event) setDocuments((ds) => ds.filter((d) => d.id !== event.deleted))
+        else if ('doc' in event) setDocuments((ds) => upsert(ds, event.doc))
+      }),
+    []
   )
 
   const on = useCallback((command: string, handler: () => void) => {
@@ -342,6 +388,63 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
         }
       })
 
+    const saveClient = (client: Client) => {
+      const next = { ...client, updatedAt: nowISO() }
+      setClients((cs) => upsert(cs, next))
+      void api().upsertClient(next)
+      // Drafts follow the client's setting; finalized notes keep what was billed.
+      const drafts = notesRef.current.filter((n) => n.clientId === next.id && n.status === 'draft' && n.session.setting !== next.setting)
+      if (drafts.length) {
+        const updated = drafts.map((n) => ({ ...n, session: { ...n.session, setting: next.setting }, updatedAt: nowISO() }))
+        setNotes((ns) => ns.map((n) => updated.find((u) => u.id === n.id) ?? n))
+        updated.forEach((n) => void api().upsertNote(n))
+      }
+    }
+
+    /**
+     * Draft or update a client's treatment plan in the background. The result replaces the plan as it is by then
+     * (the one it replaces goes to history), and waits in the queue for review like a written note.
+     */
+    const draftPlan = (clientId: string, dictation: string | Promise<string>) => {
+      if (planJobsRef.current[clientId] && !planJobsRef.current[clientId].error) return
+      const client = clientsRef.current.find((c) => c.id === clientId)
+      if (!client) return
+      const job: PlanJob = {
+        stage: typeof dictation === 'string' ? 'writing' : 'transcribing',
+        startedAt: Date.now(),
+        updating: (client.plan?.goals.length ?? 0) > 0,
+        ...(typeof dictation === 'string' ? { dictation } : {})
+      }
+      setPlanJob(clientId, job)
+      const started = epoch.current
+      const mine = () => epoch.current === started && planJobsRef.current[clientId]?.startedAt === job.startedAt
+      const viewing = () => routeRef.current.view === 'client' && routeRef.current.id === clientId && routeRef.current.tab === 'plan'
+      const open = { label: 'Open', run: () => setRoute({ view: 'client', id: clientId, tab: 'plan' }) }
+      void (async () => {
+        try {
+          const text = (await dictation).trim()
+          if (!mine()) return
+          setPlanJob(clientId, { ...planJobsRef.current[clientId], stage: 'writing', dictation: text })
+          await ensureContext(clientId)
+          const result = await api().generatePlan(clientId, text)
+          if (!mine()) return
+          const latest = clientsRef.current.find((c) => c.id === clientId)
+          if (!latest) return setPlanJob(clientId, null)
+          saveClient(applyPlanResult(latest, result, settings, uid, nowISO()))
+          setPlanJob(clientId, null)
+          const here = viewing()
+          setPlanDrafts((d) => ({ ...d, [clientId]: { reviewItems: result.review_items.filter((x) => x.trim()), updated: job.updating, finishedAt: Date.now(), unseen: !here } }))
+          if (!here) toast(`${latest.name}’s treatment plan is ready to review`, 'success', open)
+        } catch (err) {
+          if (!mine()) return
+          const latest = clientsRef.current.find((c) => c.id === clientId)
+          if (!latest) return setPlanJob(clientId, null)
+          setPlanJob(clientId, { ...planJobsRef.current[clientId], error: errorMessage(err) })
+          toast(viewing() ? errorMessage(err) : `Couldn’t draft ${latest.name}’s treatment plan: ${errorMessage(err)}`, 'error', viewing() ? undefined : open)
+        }
+      })()
+    }
+
     const takeMemo = (memoId: string, clientId: string, heard: ClientMatch['heard'], write: boolean): Note | null => {
       const memo = inboxRef.current.find((m) => m.id === memoId)
       const client = clientsRef.current.find((c) => c.id === clientId)
@@ -371,6 +474,22 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
       jobs,
       amends,
       rewrites,
+      planJobs,
+      planDrafts,
+      draftPlan,
+      retryPlan(clientId) {
+        const job = planJobsRef.current[clientId]
+        if (job?.error && job.dictation !== undefined) draftPlan(clientId, job.dictation)
+      },
+      dismissPlanJob(clientId) {
+        if (planJobsRef.current[clientId]?.error) setPlanJob(clientId, null)
+      },
+      markPlanSeen(clientId) {
+        setPlanDrafts((d) => (d[clientId]?.unseen ? { ...d, [clientId]: { ...d[clientId], unseen: false } } : d))
+      },
+      clearPlanDraft(clientId) {
+        setPlanDrafts(({ [clientId]: _, ...rest }) => rest)
+      },
       unseen,
       markSeen,
       toasts,
@@ -415,6 +534,9 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
         epoch.current++
         jobsRef.current = {}
         setJobsState({})
+        planJobsRef.current = {}
+        setPlanJobsState({})
+        setPlanDrafts({})
         setAmends({})
         setRewrites({})
         setUnseen({})
@@ -422,20 +544,10 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
         setClients(() => state.clients)
         setNotes(() => state.notes)
         setInbox(state.inbox)
+        setDocuments(state.documents)
         setRoute({ view: 'queue' })
       },
-      saveClient(client) {
-        const next = { ...client, updatedAt: nowISO() }
-        setClients((cs) => upsert(cs, next))
-        void api().upsertClient(next)
-        // Drafts follow the client's setting; finalized notes keep what was billed.
-        const drafts = notesRef.current.filter((n) => n.clientId === next.id && n.status === 'draft' && n.session.setting !== next.setting)
-        if (drafts.length) {
-          const updated = drafts.map((n) => ({ ...n, session: { ...n.session, setting: next.setting }, updatedAt: nowISO() }))
-          setNotes((ns) => ns.map((n) => updated.find((u) => u.id === n.id) ?? n))
-          updated.forEach((n) => void api().upsertNote(n))
-        }
-      },
+      saveClient,
       createClient(fields) {
         const now = nowISO()
         const client: Client = {
@@ -457,9 +569,26 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
         return client
       },
       deleteClient(id) {
+        setPlanJob(id, null)
+        setPlanDrafts(({ [id]: _, ...rest }) => rest)
         setClients((cs) => cs.filter((c) => c.id !== id))
         setNotes((ns) => ns.filter((n) => n.clientId !== id))
+        setDocuments((ds) => ds.filter((d) => d.clientId !== id))
         void api().deleteClient(id)
+      },
+      documents,
+      presenting,
+      addDocuments(docs) {
+        setDocuments((ds) => docs.reduce(upsert, ds))
+      },
+      saveDocument(doc, undoable = false) {
+        const next = { ...doc, updatedAt: nowISO() }
+        setDocuments((ds) => upsert(ds, next))
+        void api().saveDocument(next, undoable).catch((err) => toast(errorMessage(err), 'error'))
+      },
+      deleteDocument(id) {
+        setDocuments((ds) => ds.filter((d) => d.id !== id))
+        void api().deleteDocument(id)
       },
       saveNote,
       createNote(clientId, type) {
@@ -495,7 +624,7 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
         void api().deleteNote(id)
       }
     }
-  }, [settings, clients, notes, inbox, route, jobs, amends, rewrites, unseen, toasts, noteSidebar, viewing, on, emit, toast, dismissToast, markSeen, setNotes, setClients, setRoute, setJob])
+  }, [settings, clients, notes, inbox, documents, presenting, route, jobs, planJobs, planDrafts, amends, rewrites, unseen, toasts, noteSidebar, viewing, on, emit, toast, dismissToast, markSeen, setNotes, setClients, setRoute, setJob, setPlanJob])
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>
 }

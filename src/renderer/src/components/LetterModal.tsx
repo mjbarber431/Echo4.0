@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, CircleAlert, FileDown, ImagePlus, Sparkles, Undo2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, CircleAlert, FileDown, FolderInput, ImagePlus, Sparkles, Undo2 } from 'lucide-react'
 import type { Client } from '@shared/types'
 import { todayISO } from '@shared/compliance'
 import { letterToDocumentHtml, signerLabel, type Letter, type Letterhead } from '@shared/letter'
@@ -9,7 +9,7 @@ import { AutoTextarea, Button, Field, Modal } from './ui'
 
 /** Writes a letter on the practice letterhead, with a live preview of the page, and saves it as a PDF. */
 export function LetterModal({ client, onClose }: { client: Client; onClose(): void }) {
-  const { settings, toast } = useStore()
+  const { settings, toast, addDocuments, navigate } = useStore()
   const [letterhead, setLetterhead] = useState<Letterhead | null>(null)
   const [setup, setSetup] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -90,11 +90,18 @@ export function LetterModal({ client, onClose }: { client: Client; onClose(): vo
     setReview([])
   }
 
-  const save = async () => {
+  const save = async (to: 'file' | 'documents') => {
     setBusy(true)
     try {
       // The PDF is drawn from the saved letterhead, so make sure the latest edits are in.
       if (letterhead) await window.echo.saveLetterhead(letterhead)
+      if (to === 'documents') {
+        const doc = await window.echo.saveLetterToDocuments(letter, client.id)
+        addDocuments([doc])
+        toast('Letter saved to documents', 'success', { label: 'Open', run: () => navigate({ view: 'document', id: doc.id }) })
+        onClose()
+        return
+      }
       const path = await window.echo.saveLetterPdf(letter, client.name)
       if (path) {
         toast('Letter saved as PDF', 'success')
@@ -117,8 +124,11 @@ export function LetterModal({ client, onClose }: { client: Client; onClose(): vo
           <Button variant="ghost" onClick={close}>
             Cancel
           </Button>
-          <Button variant="primary" icon={<FileDown size={14} />} disabled={!letterhead || !letter.body.trim() || busy} onClick={save}>
+          <Button icon={<FileDown size={14} />} disabled={!letterhead || !letter.body.trim() || busy} onClick={() => save('file')}>
             Save PDF…
+          </Button>
+          <Button variant="primary" icon={<FolderInput size={14} />} disabled={!letterhead || !letter.body.trim() || busy} onClick={() => save('documents')} title="Keep the signed PDF in the client’s documents, where you can export it or drag it into the EHR">
+            Save to documents
           </Button>
         </>
       }

@@ -1,6 +1,7 @@
 import type { Client, Note } from './types'
-import { formatDateUS } from './compliance'
+import { formatDateUS, todayISO } from './compliance'
 import { describePlan, describePriorNotes, redactName } from './prompts'
+import { canAssign, doneLabel, type ClientDocument } from './documents'
 import { describeLibrary, KIND_LABEL, LIBRARY_INSTRUCTIONS, RESOURCE_TOKEN, resourceById } from './resources'
 
 // "Ask Claude": a consultation chat about one client, on the client's page.
@@ -42,6 +43,8 @@ export interface ChatTurn {
   thinking?: string
   /** Notes finalized after the chat started that went out with this message. */
   addedNotes?: number
+  /** The client's Library documents had changed, and the current list went out with this message. */
+  documentsUpdated?: boolean
   model?: string
   usage?: ChatUsage
   /** The reply was stopped before Claude finished. */
@@ -58,8 +61,10 @@ export interface ChatThread {
   system: string
   /** Finalized notes Claude has seen, at start or added since. */
   noteIds: string[]
+  /** The client's Library documents as Claude last saw them (describeDocuments). Missing in chats from before Claude saw them. */
+  documents?: string
   /** What the frozen record held, for the "Claude can see" line. */
-  seen: { notes: number; plan: boolean; context: boolean; diagnoses: number; asOf: string }
+  seen: { notes: number; plan: boolean; context: boolean; diagnoses: number; documents?: number; asOf: string }
   turns: ChatTurn[]
   createdAt: string
   updatedAt: string
@@ -118,7 +123,7 @@ PRIVACY
  * The frozen part of every request: instructions, the resource library, then the client's record as it is now.
  * The library comes before the record so it reads the same for every client.
  */
-export function buildChatSystem(client: Client, notes: Note[], today: string, library = describeLibrary()): string {
+export function buildChatSystem(client: Client, notes: Note[], today: string, documents: ClientDocument[] = [], library = describeLibrary()): string {
   const record = [
     `CLIENT RECORD (as of ${formatDateUS(today)})`,
     `Pronouns: ${client.pronouns.trim() || 'not specified (use "the client" and they/them)'}`,
@@ -132,9 +137,36 @@ export function buildChatSystem(client: Client, notes: Note[], today: string, li
     redactName(client.context.trim(), client.name) || 'None yet.',
     '',
     `FINALIZED NOTES (${notes.length}, oldest first)`,
-    describePriorNotes(notes, client, true) || 'None yet.'
+    describePriorNotes(notes, client, true) || 'None yet.',
+    '',
+    'LIBRARY ITEMS GIVEN TO THE CLIENT (oldest first)',
+    describeDocuments(documents, client) || 'None yet.'
   ].join('\n')
   return `${CHAT_SYSTEM}\n\n${LIBRARY_INSTRUCTIONS}\n\n${library}\n\n${record}`
+}
+
+/**
+ * The Library items the client has been given, one line each: title, library id, when, whether
+ * it's done, and a measure's score. Only Library items: added files and letters can carry
+ * other people's names in their titles, and their contents never go to Claude.
+ */
+export function describeDocuments(documents: ClientDocument[], client: Client): string {
+  // The day where the clinician is, not in UTC.
+  const day = (iso: string) => formatDateUS(todayISO(new Date(iso)))
+  return documents
+    .filter((d) => d.clientId === client.id && d.origin.kind === 'library')
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .map((d) => {
+      const id = d.origin.kind === 'library' ? d.origin.resourceId : ''
+      const status = d.status === 'todo' ? 'not completed yet' : doneLabel(d) === 'Completed' || d.score.trim() ? `completed ${day(d.completedAt ?? d.updatedAt)}` : 'given to keep'
+      return `- ${redactName(d.title, client.name)} [library ${id}]: given ${day(d.createdAt)}, ${status}${d.score.trim() ? `, score ${redactName(d.score.trim(), client.name)}` : ''}`
+    })
+    .join('\n')
+}
+
+/** The client's Library documents as they are now, when they've changed since Claude last saw them. */
+export function describeDocumentsUpdate(current: string): string {
+  return `[Echo: the Library items given to the client have changed since you last saw them. As of now:]\n\n${current || 'None.'}`
 }
 
 /** Notes finalized since the chat started, sent ahead of the clinician's next message. */
@@ -146,10 +178,11 @@ export function describeAddedNotes(notes: Note[], client: Client): string {
   ].join('\n')
 }
 
-/** The clinician's message as it goes out: newly finalized notes first, then the message, the client's name removed throughout. */
-export function userContent(text: string, client: Client, added: Note[]): ChatBlock[] {
+/** The clinician's message as it goes out: newly finalized notes and changed documents first, then the message, the client's name removed throughout. */
+export function userContent(text: string, client: Client, added: Note[], documents?: string): ChatBlock[] {
   const blocks: ChatBlock[] = []
   if (added.length) blocks.push({ type: 'text', text: describeAddedNotes(added, client) })
+  if (documents !== undefined) blocks.push({ type: 'text', text: describeDocumentsUpdate(documents) })
   blocks.push({ type: 'text', text: redactName(text.trim(), client.name) })
   return blocks
 }
@@ -194,11 +227,17 @@ export function formatCost(dollars: number): string {
 
 const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-/** A library reference as a link; the renderer opens it on click. */
-export function resourceChip(id: string): string {
+/** Library ids the client already has, for the Assign buttons beside references. Left out when copying a reply. */
+export type AssignState = Set<string>
+
+/** A library reference as a link; the renderer opens it on click. With `assign`, an Assign button follows it. */
+export function resourceChip(id: string, assign?: AssignState): string {
   const r = resourceById(id)
   if (!r) return '<span class="res-chip missing">resource not found</span>'
-  return `<button type="button" class="res-chip" data-res="${r.id}" title="${escapeHtml(r.source === 'acbs' ? 'Opens on contextualscience.org' : 'Open')}"><span class="res-kind">${KIND_LABEL[r.kind]}</span>${escapeHtml(r.title)}</button>`
+  const chip = `<button type="button" class="res-chip" data-res="${r.id}" title="${escapeHtml(r.source === 'acbs' ? 'Opens on contextualscience.org' : 'Open')}"><span class="res-kind">${KIND_LABEL[r.kind]}</span>${escapeHtml(r.title)}</button>`
+  if (!assign || !canAssign(r)) return chip
+  const done = assign.has(r.id)
+  return `<span class="res-chip-wrap">${chip}<button type="button" class="res-assign${done ? ' done' : ''}" data-assign="${r.id}" title="${done ? 'Already given to the client: open their copy' : 'Give the client their own copy, in their documents'}">${done ? 'Assigned' : 'Assign'}</button></span>`
 }
 
 /** Text with each [[r:id]] reference split out, for showing the clinician's own messages. */
@@ -214,7 +253,7 @@ export function splitResourceTokens(text: string): ({ text: string } | { id: str
   return out
 }
 
-export function chatInline(text: string): string {
+export function chatInline(text: string, assign?: AssignState): string {
   const parts = text.split(/(`[^`\n]+`)/)
   return parts
     .map((part, i) => {
@@ -225,7 +264,7 @@ export function chatInline(text: string): string {
         .replace(/(^|[^*\w])\*(?=\S)(.+?)(?<=\S)\*(?!\*)/g, '$1<i>$2</i>')
         .replace(/(^|[^_\w])_(?=\S)(.+?)(?<=\S)_(?![_\w])/g, '$1<i>$2</i>')
         .replace(/~~(?=\S)(.+?)(?<=\S)~~/g, '<s>$1</s>')
-        .replace(RESOURCE_TOKEN, (_m, id: string) => resourceChip(id))
+        .replace(RESOURCE_TOKEN, (_m, id: string) => resourceChip(id, assign))
     })
     .join('')
 }
@@ -239,13 +278,14 @@ const cells = (line: string): string[] =>
     .split('|')
     .map((c) => c.trim())
 
-export function chatToHtml(md: string): string {
+export function chatToHtml(md: string, assign?: AssignState): string {
+  const inline = (text: string) => chatInline(text, assign)
   const lines = md.replace(/\r\n?/g, '\n').split('\n')
   const out: string[] = []
   let para: string[] = []
   let list = null as { tag: 'ul' | 'ol'; items: string[] } | null
   const flushPara = () => {
-    if (para.length) out.push(`<p>${para.map(chatInline).join('<br>')}</p>`)
+    if (para.length) out.push(`<p>${para.map((p) => inline(p)).join('<br>')}</p>`)
     para = []
   }
   const flushList = () => {
@@ -269,7 +309,7 @@ export function chatToHtml(md: string): string {
     } else if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
       flush()
       const level = Math.min(4, Math.max(3, m[1].length + 1))
-      out.push(`<h${level}>${chatInline(m[2])}</h${level}>`)
+      out.push(`<h${level}>${inline(m[2])}</h${level}>`)
     } else if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) {
       flush()
       out.push('<hr>')
@@ -280,8 +320,8 @@ export function chatToHtml(md: string): string {
       i++
       while (i + 1 < lines.length && lines[i + 1].includes('|') && lines[i + 1].trim()) rows.push(cells(lines[++i]))
       out.push(
-        `<table><thead><tr>${head.map((c) => `<th>${chatInline(c)}</th>`).join('')}</tr></thead><tbody>${rows
-          .map((r) => `<tr>${head.map((_, j) => `<td>${chatInline(r[j] ?? '')}</td>`).join('')}</tr>`)
+        `<table><thead><tr>${head.map((c) => `<th>${inline(c)}</th>`).join('')}</tr></thead><tbody>${rows
+          .map((r) => `<tr>${head.map((_, j) => `<td>${inline(r[j] ?? '')}</td>`).join('')}</tr>`)
           .join('')}</tbody></table>`
       )
     } else if ((m = line.match(/^>\s?(.*)$/))) {
@@ -294,10 +334,10 @@ export function chatToHtml(md: string): string {
       const tag = m[1] ? 'ul' : 'ol'
       if (list?.tag !== tag) flushList()
       list ??= { tag, items: [] }
-      list.items.push(chatInline(m[3]))
+      list.items.push(inline(m[3]))
     } else if (list && /^\s{2,}\S/.test(line)) {
       // A wrapped or nested line continues the item above it.
-      list.items[list.items.length - 1] += `<br>${chatInline(line.trim())}`
+      list.items[list.items.length - 1] += `<br>${inline(line.trim())}`
     } else {
       flushList()
       para.push(line)

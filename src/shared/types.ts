@@ -1,6 +1,7 @@
 import type { LiveEvent } from './coach'
 import type { LegacyClientSummary, LegacyImportReport } from './legacy'
-import type { Letter, Letterhead } from './letter'
+import type { Letter, Letterhead, Signer } from './letter'
+import type { ClientDocument } from './documents'
 import type { ChatEvent, ChatSummary, ChatThread } from './chat'
 
 // Data model shared by the main process and the renderer.
@@ -221,6 +222,31 @@ export interface AppState {
   notes: Note[]
   /** Recordings from the iPhone that haven't been given to a client yet. */
   inbox: MobileMemo[]
+  documents: ClientDocument[]
+}
+
+/** A document changed in another window (the presentation window, or the main one). */
+export type DocumentEvent = { doc: ClientDocument } | { deleted: string } | { presenting: string[] } | { history: DocHistory }
+
+/** How many steps Undo and Redo can take for a document. */
+export interface DocHistory {
+  id: string
+  undo: number
+  redo: number
+}
+
+/** The presentation window's whole view of Echo: the one document it shows, and nothing else. */
+export interface PresentApi {
+  /** The document, the tab to open on, and the client's name for its stamp (never shown in the window's title). */
+  load(): Promise<{ doc: ClientDocument; bytes: Uint8Array; tab?: number; clientName: string }>
+  /** Saves marks, fields and layout. Nothing else about the document can change from here. `undoable` adds a step to Undo. */
+  save(doc: ClientDocument, undoable?: boolean): Promise<void>
+  history(): Promise<DocHistory>
+  undo(): Promise<void>
+  redo(): Promise<void>
+  signers(): Promise<Signer[]>
+  onDocument(handler: (event: DocumentEvent) => void): () => void
+  close(): void
 }
 
 /** A dictation recorded and transcribed on the iPhone, waiting for its client to be confirmed. */
@@ -341,8 +367,8 @@ export interface EchoApi {
   deleteChat(threadId: string): Promise<void>
   /** Deletes every chat for one client, or for all clients if no ID is given. Returns how many were deleted. */
   deleteAllChats(clientId?: string): Promise<number>
-  /** How many finalized notes there are and roughly what starting a chat would cost. */
-  chatPreview(clientId: string, model: string): Promise<{ notes: number; cost: number }>
+  /** How many finalized notes and Library items Claude would see, and roughly what starting a chat would cost. */
+  chatPreview(clientId: string, model: string): Promise<{ notes: number; documents: number; cost: number }>
   onChat(handler: (event: ChatEvent) => void): () => void
   /** Where the resource library is, and whether it's there. */
   resourceFolder(): Promise<{ path: string; found: boolean }>
@@ -355,6 +381,39 @@ export interface EchoApi {
   /** Shows a part in the macOS Quick Look panel, for slides and spreadsheets. */
   quickLookResource(id: string, part: number): Promise<void>
   revealResource(id: string): void
+  /** Copies a Library resource into the client's documents (as a PDF). */
+  /** Gives the client their own copy of a Library resource: every tab, as one document. */
+  assignDocument(clientId: string, resourceId: string): Promise<ClientDocument>
+  /** Asks for PDFs or images to add to the client's documents. Empty if cancelled. */
+  chooseDocumentFiles(clientId: string): Promise<ClientDocument[]>
+  /** Adds files dropped from Finder. */
+  addDocumentFiles(clientId: string, paths: string[]): Promise<ClientDocument[]>
+  /** The path of a file dropped from Finder, for addDocumentFiles. */
+  pathForFile(file: File): string
+  /** `undoable` adds a step to the document's Undo history, which every window shares. */
+  saveDocument(doc: ClientDocument, undoable?: boolean): Promise<void>
+  documentHistory(id: string): Promise<DocHistory>
+  undoDocument(id: string): Promise<void>
+  redoDocument(id: string): Promise<void>
+  deleteDocument(id: string): Promise<void>
+  /** The document's original PDF. */
+  documentBytes(id: string): Promise<Uint8Array>
+  /** Saves the finished PDF where the clinician picks. Null if cancelled. */
+  exportDocument(id: string): Promise<string | null>
+  /** Opens the finished PDF in Preview (from a temporary copy). */
+  openDocument(id: string): Promise<void>
+  /** Writes the finished PDF to a temporary file ahead of a drag, so the drag can start at once. */
+  prepareDocumentDrag(id: string): Promise<void>
+  /** Starts dragging the finished PDF out of Echo (into an EHR's upload box, Finder or Mail). */
+  dragDocument(id: string): void
+  /** Opens the document alone in its own window, to share on screen. */
+  /** Opens the document in its presentation window, on `tab` when it has several. */
+  presentDocument(id: string, tab?: number): Promise<void>
+  /** Closes the document's presentation window. */
+  stopPresenting(id: string): void
+  onDocument(handler: (event: DocumentEvent) => void): () => void
+  saveLetterToDocuments(letter: Letter, clientId: string): Promise<ClientDocument>
+  savePlanToDocuments(clientId: string): Promise<ClientDocument>
   copy(text: string, html: string): Promise<void>
   canUseTouchId(): Promise<boolean>
   unlock(): Promise<boolean>

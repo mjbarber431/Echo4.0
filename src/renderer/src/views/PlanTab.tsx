@@ -1,24 +1,27 @@
-import { useState } from 'react'
-import { AlertTriangle, CalendarCheck, Check, FileDown, History, Pencil, Plus, Sparkles, Target, Trash2, Wand2, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { AlertTriangle, CalendarCheck, Check, CircleAlert, FileDown, FolderInput, History, Pencil, Plus, RotateCcw, Sparkles, Target, Trash2, Wand2, X } from 'lucide-react'
 import type { Client, Goal, GoalStatus, TreatmentPlan } from '@shared/types'
 import { GOAL_STATUS_LABEL } from '@shared/types'
 import { formatDateUS, nextReviewDate, planReviewDue, todayISO } from '@shared/compliance'
 import { planToText, textToHtml } from '@shared/format'
-import { applyPlanResult, emptyPlan, newGoal } from '@shared/finalize'
+import { emptyPlan, newGoal } from '@shared/finalize'
 import { api, errorMessage, nowISO, uid } from '../lib/util'
 import { useStore } from '../store'
-import { Dictation } from '../components/Dictation'
+import { DictationSurface, useTranscript } from '../components/Dictation'
 import { AutoTextarea, Button, CopyButton, Empty, Field } from '../components/ui'
 
 const STATUSES = Object.keys(GOAL_STATUS_LABEL) as GoalStatus[]
 
 export function PlanTab({ client }: { client: Client }) {
-  const { saveClient, settings, toast } = useStore()
+  const { saveClient, settings, toast, planJobs, planDrafts, markPlanSeen, addDocuments, navigate } = useStore()
   const [drafting, setDrafting] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
-  const [planReview, setPlanReview] = useState<string[]>([])
   const plan = client.plan
   const today = todayISO()
+  const job = planJobs[client.id]
+  const busy = !!job && !job.error
+
+  useEffect(() => markPlanSeen(client.id), [markPlanSeen, client.id, planDrafts[client.id]])
 
   const savePlan = (next: TreatmentPlan, reason?: string) => {
     const history = reason && plan ? [{ savedAt: nowISO(), reason, plan }, ...client.planHistory].slice(0, 50) : client.planHistory
@@ -28,8 +31,10 @@ export function PlanTab({ client }: { client: Client }) {
   const updateGoal = (goal: Goal) => plan && savePlan({ ...plan, goals: plan.goals.map((g) => (g.id === goal.id ? { ...goal, updatedAt: nowISO() } : g)) })
 
   if (!plan || plan.goals.length === 0) {
-    return drafting ? (
-      <AiPlanPanel client={client} onClose={() => setDrafting(false)} onDone={(items) => (setPlanReview(items), setDrafting(false))} />
+    return job ? (
+      <PlanJobCard client={client} />
+    ) : drafting ? (
+      <AiPlanPanel client={client} onClose={() => setDrafting(false)} />
     ) : (
       <Empty icon={<Target size={26} />} title="No treatment plan yet">
         <p>Plans are drafted automatically from an intake note. For an existing client, dictate a quick summary or let Echo work from their notes, and it drafts SMART goals.</p>
@@ -80,7 +85,7 @@ export function PlanTab({ client }: { client: Client }) {
           </Button>
         </div>
         <div className="plan-bar-group">
-          <Button size="sm" variant="ghost" icon={<Sparkles size={13} />} onClick={() => setDrafting(true)}>
+          <Button size="sm" variant="ghost" icon={<Sparkles size={13} />} disabled={busy} onClick={() => setDrafting(true)}>
             Update with AI
           </Button>
           {client.planHistory.length > 0 && (
@@ -103,27 +108,30 @@ export function PlanTab({ client }: { client: Client }) {
           >
             Save PDF
           </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<FolderInput size={13} />}
+            title="Keep a PDF of the plan as it stands today in the client’s documents"
+            onClick={async () => {
+              try {
+                const doc = await api().savePlanToDocuments(client.id)
+                addDocuments([doc])
+                toast('Plan saved to documents', 'success', { label: 'Open', run: () => navigate({ view: 'document', id: doc.id }) })
+              } catch (err) {
+                toast(errorMessage(err), 'error')
+              }
+            }}
+          >
+            Save to documents
+          </Button>
           <CopyButton size="sm" variant="ghost" label="Copy plan" text={planToText(plan, client, settings)} html={textToHtml(planToText(plan, client, settings))} />
         </div>
       </div>
 
-      {drafting && <AiPlanPanel client={client} onClose={() => setDrafting(false)} onDone={(items) => (setPlanReview(items), setDrafting(false))} />}
+      {job ? <PlanJobCard client={client} /> : drafting && <AiPlanPanel client={client} onClose={() => setDrafting(false)} />}
 
-      {planReview.length > 0 && (
-        <div className="card review-inline">
-          <p>
-            <AlertTriangle size={14} className="warn" /> Please review the drafted plan:
-          </p>
-          <ul>
-            {planReview.map((r, i) => (
-              <li key={i}>{r}</li>
-            ))}
-          </ul>
-          <Button size="sm" onClick={() => setPlanReview([])}>
-            Done
-          </Button>
-        </div>
-      )}
+      {!job && <PlanReviewCard client={client} />}
 
       {showHistory && (
         <div className="card history">
@@ -322,26 +330,82 @@ function GoalCard({ goal, index, onChange, onDelete }: { goal: Goal; index: numb
   )
 }
 
-function AiPlanPanel({ client, onClose, onDone }: { client: Client; onClose(): void; onDone(reviewItems: string[]): void }) {
-  const { notes, saveClient, settings, toast } = useStore()
-  const [text, setText] = useState('')
-  const [busy, setBusy] = useState(false)
+/** A plan being drafted in the background, or one that couldn't be. */
+function PlanJobCard({ client }: { client: Client }) {
+  const { planJobs, retryPlan, dismissPlanJob } = useStore()
+  const job = planJobs[client.id]
+  if (!job) return null
+  if (job.error)
+    return (
+      <div className="card review-inline">
+        <p>
+          <CircleAlert size={14} className="error" /> Couldn’t {job.updating ? 'update' : 'draft'} the treatment plan: {job.error}
+        </p>
+        <div className="row gap">
+          {job.dictation !== undefined && (
+            <Button size="sm" variant="primary" icon={<RotateCcw size={13} />} onClick={() => retryPlan(client.id)}>
+              Try again
+            </Button>
+          )}
+          <Button size="sm" onClick={() => dismissPlanJob(client.id)}>
+            Dismiss
+          </Button>
+        </div>
+      </div>
+    )
+  return (
+    <div className="card review-inline">
+      <p>
+        <span className="activity-orb" aria-hidden /> {job.stage === 'transcribing' ? 'Transcribing…' : job.updating ? 'Echo is updating the treatment plan…' : 'Echo is drafting the treatment plan…'}
+      </p>
+      <p className="muted">You don’t need to wait here. It shows in Activity, and lands in the Queue for review when it’s done.</p>
+    </div>
+  )
+}
+
+/** A plan Echo drafted, waiting for the clinician to look it over. */
+function PlanReviewCard({ client }: { client: Client }) {
+  const { planDrafts, clearPlanDraft } = useStore()
+  const draft = planDrafts[client.id]
+  if (!draft) return null
+  return (
+    <div className="card review-inline">
+      <p>
+        <AlertTriangle size={14} className="warn" /> {draft.reviewItems.length ? `Please review the ${draft.updated ? 'updated' : 'drafted'} plan:` : `Echo ${draft.updated ? 'updated' : 'drafted'} this plan. Look it over before you use it.`}
+      </p>
+      {draft.reviewItems.length > 0 && (
+        <ul>
+          {draft.reviewItems.map((r, i) => (
+            <li key={i}>{r}</li>
+          ))}
+        </ul>
+      )}
+      <Button size="sm" onClick={() => clearPlanDraft(client.id)}>
+        Done
+      </Button>
+    </div>
+  )
+}
+
+function AiPlanPanel({ client, onClose }: { client: Client; onClose(): void }) {
+  const { notes, draftPlan } = useStore()
+  const [text, setTextState] = useState('')
+  const textRef = useRef('')
+  const setText = (next: string) => {
+    textRef.current = next
+    setTextState(next)
+  }
+  const transcript = useTranscript(text, setText)
+  const live = transcript.state !== 'idle' || transcript.pending > 0
   const existing = (client.plan?.goals.length ?? 0) > 0
   // With no dictation, the plan is deduced from the finalized notes.
   const hasNotes = notes.some((n) => n.clientId === client.id && n.status === 'final')
-  const fromRecord = !text.trim()
+  const fromRecord = !text.trim() && !live
 
-  const run = async () => {
-    setBusy(true)
-    try {
-      const result = await api().generatePlan(client.id, text)
-      saveClient(applyPlanResult(client, result, settings, uid, nowISO()))
-      toast(existing ? 'Treatment plan updated. Previous version saved to history.' : 'Treatment plan drafted', 'success')
-      onDone(result.review_items)
-    } catch (err) {
-      toast(errorMessage(err), 'error')
-      setBusy(false)
-    }
+  // Stop the mic if it's on and hand off: Echo finishes the transcript and drafts the plan in the background.
+  const run = () => {
+    draftPlan(client.id, live ? transcript.finish().then(() => textRef.current) : text)
+    onClose()
   }
 
   return (
@@ -354,8 +418,9 @@ function AiPlanPanel({ client, onClose, onDone }: { client: Client; onClose(): v
           <X size={15} />
         </button>
       </div>
-      <Dictation
+      <DictationSurface
         compact
+        controller={transcript}
         value={text}
         onChange={setText}
         placeholder={
@@ -369,8 +434,8 @@ function AiPlanPanel({ client, onClose, onDone }: { client: Client; onClose(): v
         }
       />
       <div className="generate-row">
-        <Button variant="primary" icon={<Wand2 size={15} />} disabled={(fromRecord && !hasNotes) || busy} onClick={run}>
-          {busy ? 'Drafting…' : fromRecord ? (existing ? 'Update from record' : 'Draft from record') : existing ? 'Update plan' : 'Draft plan'}
+        <Button variant="primary" icon={<Wand2 size={15} />} disabled={fromRecord && !hasNotes} onClick={run}>
+          {fromRecord ? (existing ? 'Update from record' : 'Draft from record') : existing ? 'Update plan' : 'Draft plan'}
         </Button>
       </div>
     </section>

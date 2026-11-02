@@ -1,11 +1,11 @@
 import { useMemo, type ReactNode } from 'react'
 import { InboxRow } from '../components/InboxRow'
-import { CalendarClock, CheckCircle2, CircleAlert, FilePen, FileText, RotateCcw, Smartphone, UserPlus } from 'lucide-react'
+import { CalendarClock, CheckCircle2, CircleAlert, FilePen, FileText, RotateCcw, Smartphone, Target, UserPlus } from 'lucide-react'
 import type { Client, Note } from '@shared/types'
 import { NOTE_TYPE_LABEL } from '@shared/types'
 import { planReviewDue, todayISO } from '@shared/compliance'
 import { noteToHtml, noteToText } from '@shared/format'
-import { buildQueue } from '@shared/queue'
+import { buildPlanQueue, buildQueue } from '@shared/queue'
 import { longDate, relativeDay } from '../lib/util'
 import { useStore } from '../store'
 import { Avatar, Button, CopyButton, Kbd } from '../components/ui'
@@ -16,12 +16,14 @@ import { Avatar, Button, CopyButton, Kbd } from '../components/ui'
  * written show in the sidebar's Activity panel, and new notes start from ⌘N.
  */
 export function QueueView({ onNewClient }: { onNewClient(): void }) {
-  const { clients, notes, inbox, jobs, unseen, settings, navigate, saveNote, retryJob } = useStore()
+  const { clients, notes, inbox, jobs, unseen, planJobs, planDrafts, settings, navigate, saveNote, retryJob, retryPlan } = useStore()
   const today = todayISO()
   const byId = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients])
   const q = useMemo(() => buildQueue(notes, clients, jobs, today), [notes, clients, jobs, today])
-  const reviews = clients.filter((c) => c.status === 'active' && planReviewDue(c, today))
-  const total = inbox.length + q.failed.length + q.ready.length + q.uncopied.length + q.unwritten.length + reviews.length
+  const p = useMemo(() => buildPlanQueue(clients, planJobs, planDrafts), [clients, planJobs, planDrafts])
+  // A plan being drafted (or waiting for review) isn't also due for review.
+  const reviews = clients.filter((c) => c.status === 'active' && planReviewDue(c, today) && !planJobs[c.id] && !planDrafts[c.id])
+  const total = inbox.length + q.failed.length + q.ready.length + q.uncopied.length + q.unwritten.length + reviews.length + p.failed.length + p.ready.length
 
   const open = (n: Note) => navigate({ view: 'note', id: n.id })
   const markCopied = (n: Note) => void saveNote({ ...n, copiedAt: new Date().toISOString() })
@@ -39,6 +41,16 @@ export function QueueView({ onNewClient }: { onNewClient(): void }) {
       </div>
     )
   }
+  const planRow = (c: Client, icon: ReactNode, text: ReactNode, aside?: ReactNode) => (
+    <div key={`plan-${c.id}`} className="list-row" onClick={() => navigate({ view: 'client', id: c.id, tab: 'plan' })} role="button">
+      {icon}
+      <Avatar id={c.id} name={c.name} size={24} />
+      <span className="grow">
+        <b>{c.name}</b> · {text}
+      </span>
+      {aside && <span onClick={(e) => e.stopPropagation()}>{aside}</span>}
+    </div>
+  )
   const section = (title: string, rows: ReactNode[]) =>
     rows.length > 0 && (
       <section className="today-section">
@@ -86,9 +98,8 @@ export function QueueView({ onNewClient }: { onNewClient(): void }) {
           </section>
         )}
 
-        {section(
-          'Couldn’t write',
-          q.failed.map((n) =>
+        {section('Couldn’t write', [
+          ...q.failed.map((n) =>
             row(
               n,
               <CircleAlert size={16} className="error" />,
@@ -101,12 +112,25 @@ export function QueueView({ onNewClient }: { onNewClient(): void }) {
                 </Button>
               )
             )
+          ),
+          ...p.failed.map((c) =>
+            planRow(
+              c,
+              <CircleAlert size={16} className="error" />,
+              <>
+                Treatment plan <span className="muted">couldn’t be {planJobs[c.id].updating ? 'updated' : 'drafted'}: {planJobs[c.id].error}</span>
+              </>,
+              planJobs[c.id].dictation !== undefined && (
+                <Button size="sm" variant="ghost" icon={<RotateCcw size={13} />} onClick={() => retryPlan(c.id)}>
+                  Retry
+                </Button>
+              )
+            )
           )
-        )}
+        ])}
 
-        {section(
-          'Review',
-          q.ready.map((n) =>
+        {section('Review', [
+          ...q.ready.map((n) =>
             row(
               n,
               <FileText size={16} className="accent" />,
@@ -116,8 +140,18 @@ export function QueueView({ onNewClient }: { onNewClient(): void }) {
               </>,
               <span className="muted small">{relativeDay(n.session.date, today)}</span>
             )
+          ),
+          ...p.ready.map((c) =>
+            planRow(
+              c,
+              <Target size={16} className="accent" />,
+              <>
+                Treatment plan {planDrafts[c.id].unseen && <span className="chip chip-draft">New</span>}{' '}
+                {planDrafts[c.id].reviewItems.length > 0 && <span className="chip chip-warn">{planDrafts[c.id].reviewItems.length} to check</span>}
+              </>
+            )
           )
-        )}
+        ])}
 
         {section(
           'Copy to EHR',
