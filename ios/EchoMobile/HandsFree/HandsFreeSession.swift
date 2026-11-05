@@ -60,29 +60,33 @@ final class HandsFreeSession {
     private var resumeAfterInterruption = false
     private var ending = false
     private var restarts = 0
+    /// Ends the wait for the listener to load, for this load only.
+    private var endLoad: ((Result<Void, Error>) -> Void)?
+    private var loadID = 0
 
     init(settings: HandsFreeSettings, recordingDir: URL) {
         self.settings = settings
         self.recordingDir = recordingDir
     }
 
-    /// Throws if it couldn't start, in which case nothing was recorded.
-    func start() async throws {
+    /// Throws if it couldn't start or was cancelled, in which case nothing was recorded.
+    /// `warmUp` is any model build already under way: loading alongside it would only do the work twice.
+    func start(after warmUp: Task<Void, Never>? = nil) async throws {
         guard phase == .idle else { return }
         phase = .preparing
         do {
+            Self.log.notice("Start: asking for the mic")
             guard await AVAudioApplication.requestRecordPermission() else { throw Recorder.RecorderError.microphoneDenied }
             let listener = CommandListener(
                 onCommand: { [weak self] spotted in Task { @MainActor in self?.heard(spotted) } },
                 onFailure: { [weak self] in Task { @MainActor in self?.listenerStopped() } }
             )
-            try await listener.start()
+            Self.log.notice("Start: loading the listener")
+            try await load(listener, after: warmUp)
             self.listener = listener
+            Self.log.notice("Start: setting up audio")
             try Self.configureAudio()
-            // On a speaker the mic would hear this, so wait it out rather than record it and cut
-            // afterwards: the cut would take anything said over it too, with the clock already running.
-            let length = play(.ready)
-            if Self.playsAloud { try await Task.sleep(for: .seconds(length + 0.15)) }
+            Self.log.notice("Start: starting the mic")
             let capture = try HandsFreeCapture(recordingDir: recordingDir)
             capture.onHeard = { [listener] samples in listener.hear(samples) }
             capture.onLevel = { [weak self] level in Task { @MainActor in self?.addLevel(level) } }
@@ -98,6 +102,7 @@ final class HandsFreeSession {
             #endif
             self.capture = capture
         } catch {
+            Self.log.error("Start failed: \(String(describing: error), privacy: .public)")
             await listener?.stop()
             listener = nil
             capture = nil
@@ -120,11 +125,50 @@ final class HandsFreeSession {
         setPhase(.recording)
     }
 
+    /// Gives up waiting for the listener. The load itself can't be stopped, but it isn't wasted:
+    /// iOS keeps what it compiled, so the next start is quick.
+    func cancelStart() {
+        endLoad?(.failure(CancellationError()))
+        endLoad = nil
+    }
+
+    private func load(_ listener: CommandListener, after warmUp: Task<Void, Never>?) async throws {
+        loadID += 1
+        let id = loadID
+        try await withCheckedThrowingContinuation { (waiting: CheckedContinuation<Void, Error>) in
+            endLoad = { waiting.resume(with: $0) }
+            Task {
+                await warmUp?.value
+                let result: Result<Void, Error>
+                do {
+                    try await listener.start()
+                    result = .success(())
+                } catch {
+                    result = .failure(error)
+                }
+                guard id == loadID, let endLoad else {
+                    await listener.stop() // Cancelled while it loaded.
+                    return
+                }
+                self.endLoad = nil
+                endLoad(result)
+            }
+        }
+    }
+
     // MARK: Commands
 
     /// From a button on screen.
     func tap(_ command: HandsFreeCommand) {
         run(command, spotted: nil)
+    }
+
+    /// Throws away this note and ends the session, the way Discard ends a normal recording.
+    /// Notes already finished are kept.
+    func discardAndFinish() {
+        guard phase == .recording || phase == .paused, !ending else { return }
+        capture?.apply(.discard, startMs: nil, endMs: nil, nextWordMs: nil, speakerCue: 0)
+        finish(nil)
     }
 
     private func heard(_ spotted: SpottedCommand) {

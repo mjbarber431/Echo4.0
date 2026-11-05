@@ -31,7 +31,6 @@ WORDS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
 
 # Short and free of the word "Okay" where possible: on a speaker the mic hears these.
 PHRASES = {
-    "ready": "Hands-free is on. Note one.",
     "new-note": "New note.",
     "paused": "Paused.",
     "resumed": "Recording.",
@@ -52,7 +51,6 @@ PHRASES.update({f"note-{i + 1}": f"Note {w}." for i, w in enumerate(WORDS)})
 # octave and a fast decay. Rising means "going on", falling means "stopping".
 C5, D5, E5, G5, A5, C6, E6, G4, C4 = 523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1318.5, 392.0, 261.63
 CHIMES = {
-    "ready": [(0, C5, 1), (0.13, E5, 1), (0.26, G5, 1)],
     "note": [(0, G5, 1), (0.14, C6, 1)],
     "paused": [(0, G5, 1), (0.16, C5, 0.9)],
     "resumed": [(0, C5, 0.9), (0.16, G5, 1)],

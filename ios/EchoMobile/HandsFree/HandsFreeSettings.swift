@@ -18,7 +18,7 @@ final class HandsFreeSettings {
     }
 
     var enabled: Bool { didSet { defaults.set(enabled, forKey: "handsFreeEnabled") } }
-    /// The switch on the main screen: whether Record starts a hands-free session or a plain recording.
+    /// Which way the Record button is swiped: whether it starts a hands-free session or a plain recording.
     var armed: Bool { didSet { defaults.set(armed, forKey: "handsFreeArmed") } }
     var confirmation: Confirmation { didSet { defaults.set(confirmation.rawValue, forKey: "handsFreeConfirmation") } }
     var voice: Voice { didSet { defaults.set(voice.rawValue, forKey: "handsFreeVoice") } }

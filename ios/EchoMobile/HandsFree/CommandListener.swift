@@ -17,7 +17,13 @@ final class CommandModel {
     }
 
     private(set) var status: Status
+    /// True while iOS builds its compiled copy of the model, if that's taking a while.
+    private(set) var warming = false
+    /// The build under way, for a session that needs to wait for it.
+    private(set) var warmUpTask: Task<Void, Never>?
+    private var warmed = false
     private var preparing: Task<Void, Never>?
+    private static let log = Logger(subsystem: "care.person2person.echo.mobile", category: "handsfree")
     private static let downloadedKey = "commandModelDownloaded"
     /// For the row in Settings.
     static let sizeLabel = "220 MB"
@@ -34,6 +40,7 @@ final class CommandModel {
 
     /// Downloads the model the first time. Safe to call repeatedly.
     func prepare() {
+        if status == .ready { warmUp() }
         if status == .ready || preparing != nil { return }
         preparing = Task {
             defer { preparing = nil }
@@ -50,10 +57,37 @@ final class CommandModel {
                 }
                 await manager.cleanup()
                 UserDefaults.standard.set(true, forKey: Self.downloadedKey)
+                warmed = true
                 status = .ready
             } catch {
                 status = .failed(error.localizedDescription)
             }
+        }
+    }
+
+    /// iOS keeps a compiled copy of the model and has to rebuild it after an app update, which took
+    /// 38 to 100 s on an iPhone 18 Pro. Doing that when Echo opens means Record doesn't wait for it. Once
+    /// the copy exists this takes a tenth of a second. If it fails, the session's own load deals with it.
+    func warmUp() {
+        guard status == .ready, !warmed, warmUpTask == nil else { return }
+        warmUpTask = Task {
+            let slow = Task {
+                try? await Task.sleep(for: .seconds(1))
+                if !Task.isCancelled { warming = true }
+            }
+            let started = ContinuousClock.now
+            let manager = StreamingEouAsrManager(configuration: CommandListener.configuration(.cpuAndNeuralEngine), chunkSize: CommandListener.chunkSize)
+            do {
+                try await manager.loadModels(from: Self.folder)
+                await manager.cleanup()
+                warmed = true
+                Self.log.notice("Voice commands warmed up in \(Int((ContinuousClock.now - started) / .milliseconds(1)), privacy: .public) ms")
+            } catch {
+                Self.log.error("Voice commands didn't warm up: \((error as NSError).code, privacy: .public)")
+            }
+            slow.cancel()
+            warming = false
+            warmUpTask = nil
         }
     }
 }
@@ -131,6 +165,9 @@ actor CommandListener {
 
     private func load(_ units: MLComputeUnits) async throws -> StreamingEouAsrManager {
         let next = StreamingEouAsrManager(configuration: Self.configuration(units), chunkSize: Self.chunkSize)
+        let started = ContinuousClock.now
+        Self.log.notice("Loading the listener on \(units == .cpuOnly ? "CPU" : "Neural Engine", privacy: .public)")
+        defer { Self.log.notice("Listener load ended after \(Int((ContinuousClock.now - started) / .milliseconds(1)), privacy: .public) ms") }
         // From the phone only. The download path deletes the model if a load fails, which mid-session
         // would cost the commands for the rest of the walk.
         try await next.loadModels(from: CommandModel.folder)

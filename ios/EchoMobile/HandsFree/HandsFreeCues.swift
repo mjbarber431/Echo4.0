@@ -6,7 +6,6 @@ import Foundation
 @MainActor
 final class HandsFreeCues {
     enum Cue: Equatable {
-        case ready
         /// The note that's starting now.
         case note(Int)
         /// Which note you're on, when asked.
@@ -58,7 +57,6 @@ final class HandsFreeCues {
 
     private static func chimeName(_ cue: Cue) -> String {
         switch cue {
-        case .ready: "ready"
         case .note: "note"
         case let .status(n): "count-\(min(max(n, 1), 5))"
         case .paused: "paused"
@@ -72,7 +70,6 @@ final class HandsFreeCues {
 
     private static func voiceName(_ cue: Cue) -> String {
         switch cue {
-        case .ready: "ready"
         case let .note(n), let .status(n): (1...20).contains(n) ? "note-\(n)" : "new-note"
         case .paused: "paused"
         case .resumed: "resumed"

@@ -190,7 +190,7 @@ struct HandsFreeSettingsView: View {
             Section {
                 Toggle("Use Hands-Free Mode", isOn: $settings.enabled)
             } footer: {
-                Text("Dictate several notes in a row without touching your iPhone, on a walk or doing the dishes. A Hands-free switch appears under Record. With it off, Record works as it always has.")
+                Text("Dictate several notes in a row without touching your iPhone, on a walk or doing the dishes. Swipe the Record button to switch between a normal recording and hands-free.")
             }
 
             if settings.enabled {

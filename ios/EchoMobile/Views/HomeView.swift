@@ -189,23 +189,50 @@ private struct DayTimeline: View {
     }
 }
 
-/// The record button, pinned to the bottom of the screen. With hands-free turned on in Settings,
-/// a switch under it chooses what the button starts.
+/// What the record button starts.
+private enum RecordMode: Int, CaseIterable, Identifiable {
+    case plain, handsFree
+
+    var id: Int { rawValue }
+    var title: String { self == .plain ? "Record" : "Hands-free" }
+    var icon: String { self == .plain ? "mic.fill" : "headphones" }
+}
+
+/// The record button, pinned to the bottom of the screen. With hands-free turned on in Settings
+/// it swipes between the two modes: the one button turns over under the finger like a coin, with
+/// the other mode on its back, and the name below says which is live. One gesture does the tap and
+/// the swipe, so a swipe can never start recording.
 private struct RecordBar: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var starting = false
+    @State private var dragX: CGFloat = 0
+    @State private var pressed = false
+
+    /// How far a finger travels to turn the button all the way over.
+    private static let swipeDistance: CGFloat = 120
+    private static let labelTravel: CGFloat = 36
+    private static let dialWidth: CGFloat = 280
+    private static let buttonSize: CGFloat = 78
+    /// Further than this and a touch is a swipe, not a tap.
+    private static let tapSlop: CGFloat = 10
+
+    private var modes: [RecordMode] { model.handsFreeSettings.enabled ? RecordMode.allCases : [.plain] }
+    private var selected: RecordMode { model.handsFreeSettings.enabled && model.handsFreeSettings.armed ? .handsFree : .plain }
+    /// How far along the modes the finger has taken us: 0 is plain, 1 is hands-free.
+    private var page: CGFloat { CGFloat(selected.rawValue) - dragX / Self.swipeDistance }
+    private var settling: Animation { reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.38, dampingFraction: 0.72) }
 
     var body: some View {
-        VStack(spacing: 10) {
-            recordButton
+        VStack(spacing: 8) {
+            dial
+            if modes.count > 1 { names }
 
             Text(hint)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .contentTransition(.opacity)
-
-            if model.handsFreeSettings.enabled { HandsFreeSwitch() }
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 16)
@@ -218,75 +245,180 @@ private struct RecordBar: View {
                 .ignoresSafeArea(edges: .bottom)
         }
         .animation(.snappy, value: model.recordsHandsFree)
+        .animation(.snappy, value: model.handsFreeSettings.enabled)
     }
 
     private var hint: String {
-        guard model.handsFreeSettings.enabled, model.handsFreeSettings.armed else { return "Start with the client’s name" }
+        let client = "Start with the client’s name"
+        guard selected == .handsFree else { return client }
         switch model.commandModel.status {
-        case .ready: return "Say “Okay, new note” between clients"
+        case .ready: return model.commandModel.warming ? "Getting voice commands ready…" : "Say “Okay, new note” between clients"
         case .downloading: return "Downloading voice commands…"
         case .notDownloaded, .failed: return "Finish setting up in Settings › Hands-free"
         }
     }
 
-    private var recordButton: some View {
-        Button {
-            guard !starting else { return }
-            starting = true
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            Task {
-                if model.recordsHandsFree {
-                    await model.startHandsFree()
-                } else {
-                    await model.startRecording()
-                }
-                starting = false
-            }
-        } label: {
-            ZStack {
+    private var dial: some View {
+        ZStack {
+            if !reduceMotion {
                 Circle()
-                    .fill(Color.accentColor.gradient)
-                    .shadow(color: .accentColor.opacity(0.35), radius: 12, y: 6)
-                Image(systemName: model.recordsHandsFree ? "headphones" : "mic.fill")
-                    .font(.system(size: 30, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .contentTransition(.symbolEffect(.replace))
+                    .stroke(Color.accentColor, lineWidth: 2)
+                    .frame(width: Self.buttonSize, height: Self.buttonSize)
+                    .keyframeAnimator(initialValue: Ripple(), trigger: selected) { ring, value in
+                        ring.scaleEffect(value.scale).opacity(value.opacity)
+                    } keyframes: { _ in
+                        KeyframeTrack(\.scale) {
+                            LinearKeyframe(1, duration: 0.12)
+                            CubicKeyframe(1.6, duration: 0.48)
+                        }
+                        KeyframeTrack(\.opacity) {
+                            LinearKeyframe(0.7, duration: 0.12)
+                            CubicKeyframe(0, duration: 0.48)
+                        }
+                    }
             }
-            .frame(width: 78, height: 78)
+            RecordCoin(page: page, reduceMotion: reduceMotion, waiting: model.commandModel.status != .ready)
+                .frame(width: Self.buttonSize, height: Self.buttonSize)
+                .scaleEffect(pressed ? 0.92 : 1)
+                .animation(.spring(response: 0.25, dampingFraction: 0.6), value: pressed)
+                .offset(x: dragX * 0.12) // Enough to feel held, without leaving the middle.
         }
-        .buttonStyle(PressableStyle())
+        .frame(width: Self.dialWidth, height: Self.buttonSize + 8)
+        .contentShape(Rectangle())
+        .gesture(touch)
+        .sensoryFeedback(.impact(weight: .medium), trigger: selected)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Record")
-        .accessibilityHint(model.recordsHandsFree ? "Starts recording notes you control by voice." : "Starts recording a session summary. Say the client’s name first.")
+        .accessibilityValue(modes.count > 1 ? selected.title : "")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(selected == .handsFree ? "Starts recording notes you control by voice." : "Starts recording a session summary. Say the client’s name first.")
+        .accessibilityAction { start() }
+        .accessibilityActions {
+            if modes.count > 1 {
+                let other = selected == .plain ? RecordMode.handsFree : .plain
+                Button("Switch to \(other.title)") { select(other) }
+            }
+        }
+    }
+
+    private var names: some View {
+        ZStack {
+            ForEach(modes) { mode in
+                let distance = CGFloat(mode.rawValue) - page
+                Text(mode.title)
+                    .font(.footnote.weight(.semibold))
+                    .opacity(max(0, 1 - abs(distance) * 1.6)) // Gone before it's halfway, so the two never overlap.
+                    .offset(x: distance * Self.labelTravel)
+            }
+        }
+        .frame(height: 18)
+        .accessibilityHidden(true)
+    }
+
+    private var touch: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                let x = value.translation.width
+                let isTap = abs(x) < Self.tapSlop && abs(value.translation.height) < Self.tapSlop
+                pressed = isTap && onButton(value.startLocation.x)
+                guard !isTap, !starting else { return }
+                // Past the last mode it only gives a little, so you can feel the end.
+                let target = selected.rawValue + (x < 0 ? 1 : -1)
+                dragX = modes.indices.contains(target) ? max(-Self.swipeDistance, min(x, Self.swipeDistance)) : x * 0.2
+            }
+            .onEnded { value in
+                pressed = false
+                let moved = max(abs(value.translation.width), abs(value.translation.height))
+                if moved < Self.tapSlop {
+                    if onButton(value.location.x) { start() }
+                } else {
+                    settle(flungTo: value.predictedEndTranslation.width)
+                }
+            }
+    }
+
+    private func onButton(_ x: CGFloat) -> Bool {
+        abs(x - Self.dialWidth / 2) <= Self.buttonSize / 2 + 6
+    }
+
+    private func settle(flungTo x: CGFloat) {
+        let step = x < -Self.swipeDistance / 2 ? 1 : x > Self.swipeDistance / 2 ? -1 : 0
+        select(RecordMode(rawValue: selected.rawValue + step).flatMap { modes.contains($0) ? $0 : nil } ?? selected)
+    }
+
+    private func select(_ mode: RecordMode) {
+        withAnimation(settling) {
+            model.handsFreeSettings.armed = mode == .handsFree
+            dragX = 0
+        }
+        if mode == .handsFree { model.commandModel.warmUp() }
+    }
+
+    private func start() {
+        guard !starting else { return }
+        // The hint says what it's waiting for.
+        guard selected == .plain || model.recordsHandsFree else {
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            return
+        }
+        starting = true
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Task {
+            if selected == .handsFree {
+                await model.startHandsFree()
+            } else {
+                await model.startRecording()
+            }
+            starting = false
+        }
     }
 }
 
-private struct HandsFreeSwitch: View {
-    @Environment(AppModel.self) private var model
+/// The button itself: plain on one face, hands-free on the other. Animatable so a release carries on
+/// through the turn, showing the right face at each moment, rather than jumping to the end.
+private struct RecordCoin: View, Animatable {
+    var page: CGFloat
+    let reduceMotion: Bool
+    /// Hands-free can't start yet, so its face is dimmed.
+    let waiting: Bool
+
+    nonisolated var animatableData: CGFloat {
+        get { page }
+        set { page = newValue }
+    }
 
     var body: some View {
-        let ready = model.commandModel.status == .ready
-        HStack(spacing: 10) {
-            Image(systemName: "headphones")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Color.accentColor)
-                .accessibilityHidden(true)
-            Text("Hands-free")
-                .font(.subheadline.weight(.medium))
-                .accessibilityHidden(true)
-            Toggle("Hands-free", isOn: Binding(
-                get: { model.recordsHandsFree },
-                set: { model.handsFreeSettings.armed = $0 }
-            ))
-            .labelsHidden()
-            .disabled(!ready)
-            .accessibilityHint("When on, Record starts notes you control by voice.")
+        if reduceMotion {
+            ZStack {
+                face(.plain).opacity(1 - page)
+                face(.handsFree).opacity(page)
+            }
+        } else {
+            let shown: RecordMode = page < 0.5 ? .plain : .handsFree
+            // Halfway it's edge-on. The back face is turned a further half so it doesn't read mirrored.
+            let angle = -page * 180 + (shown == .plain ? 0 : 180)
+            face(shown)
+                .scaleEffect(1 - 0.1 * sin(.pi * min(max(page, 0), 1)))
+                .rotation3DEffect(.degrees(angle), axis: (x: 0, y: 1, z: 0), perspective: 0.45)
         }
-        .padding(.leading, 16)
-        .padding(.trailing, 8)
-        .padding(.vertical, 6)
-        .background(Color(.tertiarySystemFill), in: Capsule())
-        .opacity(ready ? 1 : 0.5)
     }
+
+    private func face(_ mode: RecordMode) -> some View {
+        ZStack {
+            Circle()
+                .fill(mode == .plain ? AnyShapeStyle(Color.accentColor.gradient) : AnyShapeStyle(Color.echoDeep.gradient))
+                .shadow(color: .accentColor.opacity(0.35), radius: 12, y: 6)
+            Image(systemName: mode.icon)
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .opacity(mode == .handsFree && waiting ? 0.5 : 1)
+    }
+}
+
+private struct Ripple {
+    var scale: CGFloat = 1
+    var opacity: Double = 0
 }
 
 struct PressableStyle: ButtonStyle {

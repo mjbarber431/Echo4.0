@@ -75,6 +75,7 @@ final class AppModel {
         link.start()
         // A model that failed to load is usually fine next time, so try again without asking.
         if case .failed = speech.status, speech.isDownloaded { speech.prepare() }
+        if handsFreeSettings.enabled { commandModel.warmUp() }
         collectHandsFreeNotes()
         transcribeWaiting()
         sendWaiting()
@@ -139,7 +140,9 @@ final class AppModel {
 
     func startHandsFree() async {
         do {
-            try await handsFree.start()
+            try await handsFree.start(after: commandModel.warmUpTask)
+        } catch is CancellationError {
+            // They tapped Cancel, so there's nothing to tell them.
         } catch {
             alert = error.localizedDescription
         }

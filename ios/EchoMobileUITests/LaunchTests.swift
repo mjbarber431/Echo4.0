@@ -11,7 +11,7 @@ final class LaunchTests: XCTestCase {
     private func launch(onboarded: Bool, lock: Bool, handsFree: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         // Launch arguments override saved settings, so each test starts from a known state.
-        app.launchArguments = ["-onboarded", onboarded ? "YES" : "NO", "-faceIDLock", lock ? "YES" : "NO", "-handsFreeEnabled", handsFree ? "YES" : "NO"]
+        app.launchArguments = ["-onboarded", onboarded ? "YES" : "NO", "-faceIDLock", lock ? "YES" : "NO", "-handsFreeEnabled", handsFree ? "YES" : "NO", "-handsFreeArmed", "NO"]
         app.launchEnvironment = ["ECHO_FAKE_UNLOCK": "1"]
         app.launch()
         // Buttons under a cover can still be found and tapped by tests, so check the cover itself.
@@ -60,14 +60,30 @@ final class LaunchTests: XCTestCase {
     func testHandsFreeIsOffUnlessTurnedOn() {
         let app = launch(onboarded: true, lock: false)
         XCTAssertTrue(app.buttons["Record"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.switches["Hands-free"].exists, "Echo should look as it always has with hands-free off")
+        XCTAssertFalse(app.staticTexts["Hands-free"].exists, "Echo should look as it always has with hands-free off")
+        let record = app.buttons["Record"]
+        record.swipeLeft()
+        XCTAssertFalse(app.staticTexts["Say “Okay, new note” between clients"].exists)
+        XCTAssertNotEqual(record.value as? String, "Hands-free")
     }
 
-    func testTurningHandsFreeOnAddsASwitchNotASecondButton() {
+    func testSwipingRecordChoosesTheModeWithoutStartingIt() {
         let app = launch(onboarded: true, lock: false, handsFree: true)
-        XCTAssertTrue(app.buttons["Record"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.switches["Hands-free"].exists)
-        XCTAssertFalse(app.buttons["Hands-free"].exists)
+        let record = app.buttons["Record"]
+        XCTAssertTrue(record.waitForExistence(timeout: 10))
+        XCTAssertEqual(record.value as? String, "Record")
+        XCTAssertFalse(app.buttons["Hands-free"].exists, "One button, not two")
+        record.swipeLeft()
+        XCTAssertTrue(wait(for: record, value: "Hands-free"))
+        XCTAssertFalse(app.buttons["Done"].exists, "A swipe must not start anything")
+        record.swipeRight()
+        XCTAssertTrue(wait(for: record, value: "Record"))
+        XCTAssertFalse(app.buttons["Done"].exists, "A swipe must not start anything")
+    }
+
+    private func wait(for element: XCUIElement, value: String) -> Bool {
+        let done = expectation(for: NSPredicate(format: "value == %@", value), evaluatedWith: element)
+        return XCTWaiter().wait(for: [done], timeout: 3) == .completed
     }
 
     func testSettingsReachesEveryPage() {

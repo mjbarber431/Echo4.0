@@ -279,7 +279,7 @@ final class NoteDeskTests: XCTestCase {
 @MainActor
 final class HandsFreeCueTests: XCTestCase {
     func testEveryCueHasItsFile() {
-        var cues: [HandsFreeCues.Cue] = [.ready, .paused, .resumed, .discarded, .restored, .undone, .saved, .nothingSaved, .nothingToUndo, .micChanged, .commandsStopped, .problem, .help]
+        var cues: [HandsFreeCues.Cue] = [.paused, .resumed, .discarded, .restored, .undone, .saved, .nothingSaved, .nothingToUndo, .micChanged, .commandsStopped, .problem, .help]
         cues += (1...25).flatMap { [HandsFreeCues.Cue.note($0), .status($0)] }
         for cue in cues {
             for style in HandsFreeSettings.Confirmation.allCases {

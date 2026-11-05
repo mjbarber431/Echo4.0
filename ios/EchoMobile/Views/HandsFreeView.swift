@@ -5,6 +5,7 @@ import SwiftUI
 struct HandsFreeView: View {
     @Environment(AppModel.self) private var model
     @State private var confirmDiscard = false
+    @State private var slowStart = false
 
     private var session: HandsFreeSession { model.handsFree }
     private var paused: Bool { session.phase == .paused }
@@ -18,6 +19,21 @@ struct HandsFreeView: View {
                 VStack(spacing: 14) {
                     ProgressView().tint(.white).controlSize(.large)
                     Text("Getting ready to listen…").font(.headline).foregroundStyle(.white)
+                    if slowStart {
+                        Text("The first start after an update can take a minute or two.")
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.75))
+                            .multilineTextAlignment(.center)
+                        Button("Cancel") { session.cancelStart() }
+                            .buttonStyle(.bordered)
+                            .tint(.white)
+                            .padding(.top, 6)
+                    }
+                }
+                .padding(.horizontal, 32)
+                .task {
+                    try? await Task.sleep(for: .seconds(4))
+                    withAnimation { slowStart = true }
                 }
             } else {
                 content
@@ -25,10 +41,11 @@ struct HandsFreeView: View {
         }
         .preferredColorScheme(.dark)
         .confirmationDialog("Discard note \(session.note)?", isPresented: $confirmDiscard, titleVisibility: .visible) {
-            Button("Discard Note", role: .destructive) { session.tap(.discard) }
+            Button("Discard Note and Finish", role: .destructive) { session.discardAndFinish() }
+            Button("Discard Note and Keep Recording", role: .destructive) { session.tap(.discard) }
             Button("Keep Note", role: .cancel) {}
         } message: {
-            Text("You can say “Okay, undo” to bring it back until you finish.")
+            Text(session.note > 1 ? "Your earlier notes are kept either way." : "If you keep recording, you can say “Okay, undo” to bring it back.")
         }
     }
 
