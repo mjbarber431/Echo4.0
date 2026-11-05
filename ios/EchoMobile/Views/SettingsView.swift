@@ -190,7 +190,7 @@ struct HandsFreeSettingsView: View {
             Section {
                 Toggle("Use Hands-Free Mode", isOn: $settings.enabled)
             } footer: {
-                Text("Dictate several notes in a row without touching your iPhone, on a walk or doing the dishes. A Hands-free button appears next to Record. The Record button itself doesn’t change.")
+                Text("Dictate several notes in a row without touching your iPhone, on a walk or doing the dishes. A Hands-free switch appears under Record. With it off, Record works as it always has.")
             }
 
             if settings.enabled {
@@ -331,7 +331,7 @@ struct SpeechModelRow: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("The speech model couldn’t load").foregroundStyle(.orange)
                 Text(message).font(.footnote).foregroundStyle(.secondary)
-                Button("Try Again") { model.speech.prepare() }
+                Button("Try Again") { model.speech.prepare(repair: true) }
             }
         }
     }

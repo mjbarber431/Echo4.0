@@ -18,6 +18,8 @@ final class HandsFreeSettings {
     }
 
     var enabled: Bool { didSet { defaults.set(enabled, forKey: "handsFreeEnabled") } }
+    /// The switch on the main screen: whether Record starts a hands-free session or a plain recording.
+    var armed: Bool { didSet { defaults.set(armed, forKey: "handsFreeArmed") } }
     var confirmation: Confirmation { didSet { defaults.set(confirmation.rawValue, forKey: "handsFreeConfirmation") } }
     var voice: Voice { didSet { defaults.set(voice.rawValue, forKey: "handsFreeVoice") } }
 
@@ -26,6 +28,7 @@ final class HandsFreeSettings {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         enabled = defaults.bool(forKey: "handsFreeEnabled")
+        armed = defaults.bool(forKey: "handsFreeArmed")
         confirmation = defaults.string(forKey: "handsFreeConfirmation").flatMap(Confirmation.init) ?? .chimes
         voice = defaults.string(forKey: "handsFreeVoice").flatMap(Voice.init) ?? .sarah
     }

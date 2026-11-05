@@ -283,12 +283,15 @@ final class HandsFreeCueTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: UUID().uuidString))
         let settings = HandsFreeSettings(defaults: defaults)
         XCTAssertFalse(settings.enabled)
+        XCTAssertFalse(settings.armed)
         XCTAssertEqual(settings.confirmation, .chimes)
         settings.enabled = true
+        settings.armed = true
         settings.confirmation = .voice
         settings.voice = .eric
         let again = HandsFreeSettings(defaults: defaults)
         XCTAssertTrue(again.enabled)
+        XCTAssertTrue(again.armed)
         XCTAssertEqual(again.confirmation, .voice)
         XCTAssertEqual(again.voice, .eric)
     }

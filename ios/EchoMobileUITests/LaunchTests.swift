@@ -8,10 +8,10 @@ final class LaunchTests: XCTestCase {
         continueAfterFailure = false
     }
 
-    private func launch(onboarded: Bool, lock: Bool) -> XCUIApplication {
+    private func launch(onboarded: Bool, lock: Bool, handsFree: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         // Launch arguments override saved settings, so each test starts from a known state.
-        app.launchArguments = ["-onboarded", onboarded ? "YES" : "NO", "-faceIDLock", lock ? "YES" : "NO", "-handsFreeEnabled", "NO"]
+        app.launchArguments = ["-onboarded", onboarded ? "YES" : "NO", "-faceIDLock", lock ? "YES" : "NO", "-handsFreeEnabled", handsFree ? "YES" : "NO"]
         app.launchEnvironment = ["ECHO_FAKE_UNLOCK": "1"]
         app.launch()
         // Buttons under a cover can still be found and tapped by tests, so check the cover itself.
@@ -60,7 +60,14 @@ final class LaunchTests: XCTestCase {
     func testHandsFreeIsOffUnlessTurnedOn() {
         let app = launch(onboarded: true, lock: false)
         XCTAssertTrue(app.buttons["Record"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.buttons["Hands-free"].exists, "Echo should look as it always has with hands-free off")
+        XCTAssertFalse(app.switches["Hands-free"].exists, "Echo should look as it always has with hands-free off")
+    }
+
+    func testTurningHandsFreeOnAddsASwitchNotASecondButton() {
+        let app = launch(onboarded: true, lock: false, handsFree: true)
+        XCTAssertTrue(app.buttons["Record"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.switches["Hands-free"].exists)
+        XCTAssertFalse(app.buttons["Hands-free"].exists)
     }
 
     func testSettingsReachesEveryPage() {

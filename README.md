@@ -117,9 +117,9 @@ Face ID (or the passcode) protects the iPhone app by default, and the app is hid
 
 ### Hands-free mode
 
-An optional way to dictate several notes in a row without touching the phone: on a walk with headphones in, or with the phone on the counter. It's off by default. Turn it on in the iPhone app's *Settings › Hands-free* and a Hands-free button appears next to Record. The Record button and everything behind it work as they always have.
+An optional way to dictate several notes in a row without touching the phone: on a walk with headphones in, or with the phone on the counter. It's off by default. Turn it on in the iPhone app's *Settings › Hands-free* and a Hands-free switch appears under Record. With the switch on, Record starts a hands-free session; with it off, Record and everything behind it work as they always have.
 
-Start a session, lock the phone, and talk. Every command starts with "Echo", and a chime or a voice (your choice in Settings) confirms it in your ear. No confirmation means Echo didn't hear it, so say it again.
+Tap Record, lock the phone, and talk. Every command starts with "Echo", and a chime or a voice (your choice in Settings) confirms it in your ear. No confirmation means Echo didn't hear it, so say it again.
 
 | Say | What happens |
 | --- | --- |

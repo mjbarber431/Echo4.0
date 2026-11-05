@@ -14,6 +14,7 @@ struct HomeView: View {
             List {
                 Section {
                     LinkStatusRow(onPair: { showPairing = true })
+                        .listRowBackground(statusBackground)
                 }
 
                 if model.store.waiting.isEmpty && model.store.sentToday.isEmpty {
@@ -67,6 +68,15 @@ struct HomeView: View {
             } message: {
                 Text(model.alert ?? "")
             }
+        }
+    }
+
+    /// Echo's green, as on Settings, unless something's wrong with the link.
+    @ViewBuilder private var statusBackground: some View {
+        if case .blocked = model.link.state {
+            Rectangle().fill(Color.orange.opacity(0.14))
+        } else {
+            Rectangle().fill(.echoBackground)
         }
     }
 }
@@ -179,79 +189,103 @@ private struct DayTimeline: View {
     }
 }
 
-/// The record button, pinned to the bottom of the screen.
+/// The record button, pinned to the bottom of the screen. With hands-free turned on in Settings,
+/// a switch under it chooses what the button starts.
 private struct RecordBar: View {
     @Environment(AppModel.self) private var model
     @State private var starting = false
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             recordButton
-                .overlay(alignment: .trailing) {
-                    if model.handsFreeSettings.enabled { handsFreeButton.offset(x: 112) }
-                }
 
-            Text("Start with the client’s name")
+            Text(hint)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .contentTransition(.opacity)
+
+            if model.handsFreeSettings.enabled { HandsFreeSwitch() }
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 14)
-        .padding(.bottom, 6)
-        .background(.bar)
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+        .padding(.bottom, 8)
+        .background {
+            UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28)
+                .fill(.bar)
+                .shadow(color: .black.opacity(0.07), radius: 14, y: -4)
+                .ignoresSafeArea(edges: .bottom)
+        }
+        .animation(.snappy, value: model.recordsHandsFree)
     }
 
-    /// Only there once hands-free is turned on in Settings.
-    private var handsFreeButton: some View {
+    private var hint: String {
+        guard model.handsFreeSettings.enabled, model.handsFreeSettings.armed else { return "Start with the client’s name" }
+        switch model.commandModel.status {
+        case .ready: return "Say “Echo, new note” between clients"
+        case .downloading: return "Downloading voice commands…"
+        case .notDownloaded, .failed: return "Finish setting up in Settings › Hands-free"
+        }
+    }
+
+    private var recordButton: some View {
         Button {
             guard !starting else { return }
             starting = true
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             Task {
-                await model.startHandsFree()
+                if model.recordsHandsFree {
+                    await model.startHandsFree()
+                } else {
+                    await model.startRecording()
+                }
                 starting = false
             }
         } label: {
-            VStack(spacing: 5) {
-                Image(systemName: "headphones")
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 50, height: 50)
-                    .background(Color.accentColor.opacity(0.13), in: Circle())
-                Text("Hands-free").font(.caption2).foregroundStyle(.secondary)
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.gradient)
+                    .shadow(color: .accentColor.opacity(0.35), radius: 12, y: 6)
+                Image(systemName: model.recordsHandsFree ? "headphones" : "mic.fill")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .contentTransition(.symbolEffect(.replace))
             }
-            .fixedSize()
+            .frame(width: 78, height: 78)
         }
         .buttonStyle(PressableStyle())
-        .disabled(model.commandModel.status != .ready)
-        .opacity(model.commandModel.status == .ready ? 1 : 0.4)
-        .accessibilityLabel("Hands-free")
-        .accessibilityHint("Starts recording notes you control by voice.")
+        .accessibilityLabel("Record")
+        .accessibilityHint(model.recordsHandsFree ? "Starts recording notes you control by voice." : "Starts recording a session summary. Say the client’s name first.")
     }
+}
 
-    private var recordButton: some View {
-        Button {
-                guard !starting else { return }
-                starting = true
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                Task {
-                    await model.startRecording()
-                    starting = false
-                }
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(Color.accentColor.gradient)
-                        .shadow(color: .accentColor.opacity(0.35), radius: 12, y: 6)
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 30, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-                .frame(width: 78, height: 78)
-            }
-            .buttonStyle(PressableStyle())
-            .accessibilityLabel("Record")
-            .accessibilityHint("Starts recording a session summary. Say the client’s name first.")
+private struct HandsFreeSwitch: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let ready = model.commandModel.status == .ready
+        HStack(spacing: 10) {
+            Image(systemName: "headphones")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color.accentColor)
+                .accessibilityHidden(true)
+            Text("Hands-free")
+                .font(.subheadline.weight(.medium))
+                .accessibilityHidden(true)
+            Toggle("Hands-free", isOn: Binding(
+                get: { model.recordsHandsFree },
+                set: { model.handsFreeSettings.armed = $0 }
+            ))
+            .labelsHidden()
+            .disabled(!ready)
+            .accessibilityHint("When on, Record starts notes you control by voice.")
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
+        .padding(.vertical, 6)
+        .background(Color(.tertiarySystemFill), in: Capsule())
+        .opacity(ready ? 1 : 0.5)
     }
 }
 
@@ -274,20 +308,20 @@ struct LinkStatusRow: View {
         switch link.state {
         case .unpaired:
             Button(action: onPair) {
-                row(icon: "qrcode.viewfinder", tint: .accentColor, title: "Pair with your Mac", detail: "On your Mac, open Echo › Settings › iPhone, then scan the code.", chevron: true)
+                row(icon: "qrcode.viewfinder", title: "Pair with your Mac", detail: "On your Mac, open Echo › Settings › iPhone, then scan the code.", chevron: true)
             }
             .tint(.primary)
         case .searching:
-            row(icon: "laptopcomputer", tint: .secondary, title: "Looking for \(link.macName)…", detail: waiting > 0 ? "\(count(waiting)) will send when this iPhone and your Mac are on the same Wi-Fi with Echo open." : "Recordings send when this iPhone and your Mac are on the same Wi-Fi with Echo open.", busy: true)
+            row(icon: "laptopcomputer", title: "Looking for \(link.macName)…", detail: waiting > 0 ? "\(count(waiting)) will send when this iPhone and your Mac are on the same Wi-Fi with Echo open." : "Recordings send when this iPhone and your Mac are on the same Wi-Fi with Echo open.", busy: true)
         case .found:
-            row(icon: "checkmark", tint: .green, title: "Connected to \(link.macName)", detail: waiting > 0 ? "\(count(waiting)) waiting to send." : "Everything’s on your Mac.")
+            row(icon: "checkmark", title: "Connected to \(link.macName)", detail: waiting > 0 ? "\(count(waiting)) waiting to send." : "Everything’s on your Mac.")
         case .sending:
-            row(icon: "arrow.up", tint: .accentColor, title: "Sending to \(link.macName)…", detail: "\(count(waiting)).", busy: true)
+            row(icon: "arrow.up", title: "Sending to \(link.macName)…", detail: "\(count(waiting)).", busy: true)
         case let .blocked(reason):
             Button {
                 if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
             } label: {
-                row(icon: "exclamationmark.triangle.fill", tint: .orange, title: "Can’t reach \(link.macName)", detail: reason, chevron: reason.contains("Settings ›"))
+                row(icon: "exclamationmark.triangle.fill", title: "Can’t reach \(link.macName)", detail: reason, chevron: reason.contains("Settings ›"), warning: true)
             }
             .tint(.primary)
         }
@@ -295,27 +329,29 @@ struct LinkStatusRow: View {
 
     private func count(_ n: Int) -> String { n == 1 ? "1 recording" : "\(n) recordings" }
 
-    private func row(icon: String, tint: Color, title: String, detail: String, busy: Bool = false, chevron: Bool = false) -> some View {
+    /// White on Echo's green, or plain text on orange when something needs fixing.
+    private func row(icon: String, title: String, detail: String, busy: Bool = false, chevron: Bool = false, warning: Bool = false) -> some View {
         HStack(spacing: 14) {
             ZStack {
-                Circle().fill(tint.opacity(0.14))
+                Circle().fill(warning ? AnyShapeStyle(Color.orange.opacity(0.2)) : AnyShapeStyle(.white.opacity(0.16)))
                 if busy {
-                    ProgressView().controlSize(.small)
+                    ProgressView().controlSize(.small).tint(.white)
                 } else {
-                    Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(tint)
+                    Image(systemName: icon).font(.system(size: 15, weight: .semibold)).foregroundStyle(warning ? .orange : .white)
                 }
             }
             .frame(width: 36, height: 36)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.subheadline.weight(.semibold))
-                Text(detail).font(.footnote).foregroundStyle(.secondary)
+                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(warning ? .primary : Color.white)
+                Text(detail).font(.footnote).foregroundStyle(warning ? AnyShapeStyle(.secondary) : AnyShapeStyle(.white.opacity(0.75)))
             }
             Spacer(minLength: 0)
             if chevron {
-                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold))
+                    .foregroundStyle(warning ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.white.opacity(0.6)))
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
         .contentShape(Rectangle())
     }
 }

@@ -73,6 +73,8 @@ final class AppModel {
 
     func becameActive() {
         link.start()
+        // A model that failed to load is usually fine next time, so try again without asking.
+        if case .failed = speech.status, speech.isDownloaded { speech.prepare() }
         collectHandsFreeNotes()
         transcribeWaiting()
         sendWaiting()
@@ -129,6 +131,11 @@ final class AppModel {
     }
 
     // MARK: Hands-free
+
+    /// Whether the Record button starts a hands-free session. It can only once the commands can be heard.
+    var recordsHandsFree: Bool {
+        handsFreeSettings.enabled && handsFreeSettings.armed && commandModel.status == .ready
+    }
 
     func startHandsFree() async {
         do {
@@ -189,34 +196,40 @@ final class AppModel {
         }
         task = UIApplication.shared.beginBackgroundTask(withName: "Transcribe") { MainActor.assumeIsolated { end() } }
         Task {
-            defer {
-                working = false
-                transcribingID = nil
-                end()
-            }
-            var memo = next
-            do {
-                let text = try await speech.transcribe(store.audioURL(next.id))
-                if text.isEmpty {
-                    memo.phase = .failed
-                    memo.problem = "Nothing was picked up. Check the microphone wasn’t covered, and record again."
-                    try store.save(memo)
-                } else {
-                    memo.phase = .ready
-                    memo.transcript = text
-                    memo.problem = nil
-                    // The transcript is on disk before the audio goes.
-                    try store.save(memo)
-                    store.deleteAudio(next.id)
-                }
-            } catch {
-                guard UIApplication.shared.isProtectedDataAvailable else { return } // Locked mid-way: try again on unlock.
-                memo.phase = .failed
-                memo.problem = "Couldn’t transcribe: \(error.localizedDescription)"
-                try? store.save(memo)
-            }
-            transcribeWaiting()
+            let keepGoing = await transcribe(next)
+            working = false
+            transcribingID = nil
+            // Start the next one before giving up the background time, so the queue keeps moving.
+            if keepGoing { transcribeWaiting() }
             sendWaiting()
+            end()
+        }
+    }
+
+    /// Returns false if the queue should stop here: the phone locked, or the result couldn't be
+    /// saved, in which case going on would only pick this same recording up again.
+    private func transcribe(_ next: Memo) async -> Bool {
+        var memo = next
+        do {
+            let text = try await speech.transcribe(store.audioURL(next.id))
+            if text.isEmpty {
+                memo.phase = .failed
+                memo.problem = "Nothing was picked up. Check the microphone wasn’t covered, and record again."
+                try store.save(memo)
+            } else {
+                memo.phase = .ready
+                memo.transcript = text
+                memo.problem = nil
+                // The transcript is on disk before the audio goes.
+                try store.save(memo)
+                store.deleteAudio(next.id)
+            }
+            return true
+        } catch {
+            guard UIApplication.shared.isProtectedDataAvailable else { return false } // Locked mid-way: try again on unlock.
+            memo.phase = .failed
+            memo.problem = "Couldn’t transcribe: \(error.localizedDescription)"
+            return (try? store.save(memo)) != nil
         }
     }
 

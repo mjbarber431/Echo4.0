@@ -22,8 +22,14 @@ final class CommandModel {
     /// For the row in Settings.
     static let sizeLabel = "220 MB"
 
+    /// Where the model's files live on the phone.
+    static var folder: URL {
+        SpeechModel.directory.appendingPathComponent(Repo.parakeetEou320.folderName, isDirectory: true)
+    }
+
     init() {
-        status = UserDefaults.standard.bool(forKey: Self.downloadedKey) ? .ready : .notDownloaded
+        let isOnPhone = FileManager.default.fileExists(atPath: Self.folder.appendingPathComponent("streaming_encoder.mlmodelc").path)
+        status = UserDefaults.standard.bool(forKey: Self.downloadedKey) && isOnPhone ? .ready : .notDownloaded
     }
 
     /// Downloads the model the first time. Safe to call repeatedly.
@@ -125,7 +131,9 @@ actor CommandListener {
 
     private func load(_ units: MLComputeUnits) async throws -> StreamingEouAsrManager {
         let next = StreamingEouAsrManager(configuration: Self.configuration(units), chunkSize: Self.chunkSize)
-        try await next.loadModels(to: SpeechModel.directory, configuration: nil, progressHandler: nil)
+        // From the phone only. The download path deletes the model if a load fails, which mid-session
+        // would cost the commands for the rest of the walk.
+        try await next.loadModels(from: CommandModel.folder)
         return next
     }
 

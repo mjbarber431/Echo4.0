@@ -1,6 +1,7 @@
 import FluidAudio
 import Foundation
 import Observation
+import os
 
 /// Speech-to-text on the phone: NVIDIA's Parakeet (English v2, the model Echo on
 /// the Mac uses by default) on the Neural Engine through FluidAudio. Audio never
@@ -43,15 +44,16 @@ final class SpeechModel {
         try? dir.setResourceValues(values)
     }
 
-    /// Downloads (the first time) and loads the model. Safe to call repeatedly.
-    func prepare() {
+    /// Downloads (the first time) and loads the model. Safe to call repeatedly. `repair` allows a
+    /// model that won't load to be deleted and downloaded again, which should only follow a tap.
+    func prepare(repair: Bool = false) {
         if status == .ready || preparing != nil { return }
         preparing = Task {
             defer { preparing = nil }
             status = isDownloaded ? .loading : .downloading(0)
             do {
                 try Self.makeDirectory()
-                try await engine.prepare(in: Self.directory) { fraction, downloading in
+                try await engine.prepare(in: Self.directory, keepFiles: isDownloaded && !repair) { fraction, downloading in
                     Task { @MainActor in
                         if self.status != .ready { self.status = downloading ? .downloading(fraction) : .loading }
                     }
@@ -72,19 +74,40 @@ final class SpeechModel {
 
 /// Owns the FluidAudio manager off the main thread.
 actor SpeechEngine {
+    private static let log = Logger(subsystem: "care.person2person.echo.mobile", category: "speech")
     private var manager: AsrManager?
     private var decoderLayers = 2
 
-    func prepare(in dir: URL, progress: @escaping @Sendable (Double, Bool) -> Void) async throws {
+    /// `keepFiles` loads a model that's already on the phone without going near the download code.
+    /// That code takes any failed load for a corrupt download and deletes the model to fetch it again,
+    /// and iOS has to rebuild its compiled copy after an app update, which is when a load is likeliest to fail.
+    func prepare(in dir: URL, keepFiles: Bool, progress: @escaping @Sendable (Double, Bool) -> Void) async throws {
         if manager != nil { return }
         let target = dir.appendingPathComponent(Repo.parakeetV2.folderName)
-        let models = try await AsrModels.downloadAndLoad(to: target, version: .v2) { p in
-            if case .downloading = p.phase { progress(p.fractionCompleted, true) } else { progress(p.fractionCompleted, false) }
+        let models: AsrModels
+        if keepFiles, AsrModels.modelsExist(at: target, version: .v2) {
+            models = try await loadFromPhone(target)
+        } else {
+            Self.log.notice("Fetching the speech model. Files kept: \(keepFiles, privacy: .public)")
+            models = try await AsrModels.downloadAndLoad(to: target, version: .v2) { p in
+                if case .downloading = p.phase { progress(p.fractionCompleted, true) } else { progress(p.fractionCompleted, false) }
+            }
         }
         let next = AsrManager(config: .default)
         try await next.loadModels(models)
         decoderLayers = models.version.decoderLayers
         manager = next
+    }
+
+    private func loadFromPhone(_ folder: URL) async throws -> AsrModels {
+        do {
+            return try AsrModels.loadLocal(from: folder, version: .v2)
+        } catch {
+            let failure = error as NSError
+            Self.log.error("Speech model didn't load: \(failure.domain, privacy: .public) \(failure.code, privacy: .public). Trying once more.")
+            try await Task.sleep(for: .seconds(2))
+            return try AsrModels.loadLocal(from: folder, version: .v2)
+        }
     }
 
     func transcribe(_ url: URL) async throws -> String {

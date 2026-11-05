@@ -75,7 +75,7 @@ struct OnboardingView: View {
         } action: {
             switch model.speech.status {
             case .notDownloaded, .failed:
-                primary("Download") { model.speech.prepare() }
+                primary("Download") { model.speech.prepare(repair: true) }
                 secondary("Later") { step = 2 }
             default:
                 primary("Continue") { step = 2 }
