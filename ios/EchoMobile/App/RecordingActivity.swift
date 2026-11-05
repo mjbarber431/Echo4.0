@@ -10,8 +10,8 @@ final class RecordingActivity {
     /// Updates run one after another, so a quick pause and resume can't arrive out of order.
     private var queue: Task<Void, Never>?
 
-    func show(_ status: RecordingAttributes.ContentState.Status, elapsed: TimeInterval) {
-        let state = RecordingAttributes.ContentState(status: status, since: Date().addingTimeInterval(-elapsed), elapsed: elapsed)
+    func show(_ status: RecordingAttributes.ContentState.Status, elapsed: TimeInterval, note: Int? = nil) {
+        let state = RecordingAttributes.ContentState(status: status, since: Date().addingTimeInterval(-elapsed), elapsed: elapsed, note: note)
         let content = ActivityContent(state: state, staleDate: nil)
         if let activity {
             enqueue { await activity.update(content) }

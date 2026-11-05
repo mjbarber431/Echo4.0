@@ -34,6 +34,15 @@ final class SpeechModel {
             .appendingPathComponent("Models", isDirectory: true)
     }
 
+    /// Makes the folder models live in, kept out of iCloud backups.
+    static func makeDirectory() throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var dir = directory
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? dir.setResourceValues(values)
+    }
+
     /// Downloads (the first time) and loads the model. Safe to call repeatedly.
     func prepare() {
         if status == .ready || preparing != nil { return }
@@ -41,11 +50,7 @@ final class SpeechModel {
             defer { preparing = nil }
             status = isDownloaded ? .loading : .downloading(0)
             do {
-                try FileManager.default.createDirectory(at: Self.directory, withIntermediateDirectories: true)
-                var dir = Self.directory
-                var values = URLResourceValues()
-                values.isExcludedFromBackup = true
-                try? dir.setResourceValues(values)
+                try Self.makeDirectory()
                 try await engine.prepare(in: Self.directory) { fraction, downloading in
                     Task { @MainActor in
                         if self.status != .ready { self.status = downloading ? .downloading(fraction) : .loading }

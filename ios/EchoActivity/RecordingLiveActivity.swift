@@ -99,7 +99,7 @@ private struct StatusDot: View {
 private extension RecordingAttributes.ContentState {
     var title: String {
         switch status {
-        case .recording: "Recording"
+        case .recording: note.map { "Note \($0)" } ?? "Recording"
         case .paused: "Paused"
         case .stopped: "Stopped"
         }
@@ -107,8 +107,8 @@ private extension RecordingAttributes.ContentState {
 
     var detail: String {
         switch status {
-        case .recording: "Keeps recording with the phone locked."
-        case .paused: "Open Echo to resume."
+        case .recording: note == nil ? "Keeps recording with the phone locked." : "Say “Echo, new note” for the next one."
+        case .paused: note == nil ? "Open Echo to resume." : "Say “Echo, resume” to carry on."
         case .stopped: "Open Echo to save what was recorded."
         }
     }

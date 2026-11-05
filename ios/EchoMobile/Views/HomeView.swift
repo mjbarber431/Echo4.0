@@ -59,7 +59,9 @@ struct HomeView: View {
             .sheet(item: $selected) { memo in MemoDetailView(memoID: memo.id) }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(isPresented: $showPairing) { PairingView() }
-            .fullScreenCover(isPresented: Binding(get: { model.recordingID != nil }, set: { _ in })) { RecordingView() }
+            .fullScreenCover(isPresented: Binding(get: { model.recordingID != nil || model.handsFree.isActive }, set: { _ in })) {
+                if model.handsFree.isActive { HandsFreeView() } else { RecordingView() }
+            }
             .alert("Echo", isPresented: Binding(get: { model.alert != nil }, set: { if !$0 { model.alert = nil } })) {
                 Button("OK", role: .cancel) {}
             } message: {
@@ -184,7 +186,51 @@ private struct RecordBar: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Button {
+            recordButton
+                .overlay(alignment: .trailing) {
+                    if model.handsFreeSettings.enabled { handsFreeButton.offset(x: 112) }
+                }
+
+            Text("Start with the client’s name")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 14)
+        .padding(.bottom, 6)
+        .background(.bar)
+    }
+
+    /// Only there once hands-free is turned on in Settings.
+    private var handsFreeButton: some View {
+        Button {
+            guard !starting else { return }
+            starting = true
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            Task {
+                await model.startHandsFree()
+                starting = false
+            }
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: "headphones")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 50, height: 50)
+                    .background(Color.accentColor.opacity(0.13), in: Circle())
+                Text("Hands-free").font(.caption2).foregroundStyle(.secondary)
+            }
+            .fixedSize()
+        }
+        .buttonStyle(PressableStyle())
+        .disabled(model.commandModel.status != .ready)
+        .opacity(model.commandModel.status == .ready ? 1 : 0.4)
+        .accessibilityLabel("Hands-free")
+        .accessibilityHint("Starts recording notes you control by voice.")
+    }
+
+    private var recordButton: some View {
+        Button {
                 guard !starting else { return }
                 starting = true
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -206,15 +252,6 @@ private struct RecordBar: View {
             .buttonStyle(PressableStyle())
             .accessibilityLabel("Record")
             .accessibilityHint("Starts recording a session summary. Say the client’s name first.")
-
-            Text("Start with the client’s name")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 14)
-        .padding(.bottom, 6)
-        .background(.bar)
     }
 }
 

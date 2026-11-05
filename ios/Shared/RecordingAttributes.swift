@@ -17,5 +17,7 @@ struct RecordingAttributes: ActivityAttributes {
         var since: Date
         /// The length recorded so far, shown frozen while it isn't recording.
         var elapsed: TimeInterval
+        /// Which note it's on, in hands-free mode.
+        var note: Int? = nil
     }
 }

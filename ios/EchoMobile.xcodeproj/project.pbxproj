@@ -7,37 +7,135 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		031F6C1F65F6B65565FD8FC1 /* chime-count-5.wav in Resources */ = {isa = PBXBuildFile; fileRef = 72C997A8329F34C109122C0A /* chime-count-5.wav */; };
+		05D91E4E0FA42AAC7E957B67 /* voice-eric-mic-changed.m4a in Resources */ = {isa = PBXBuildFile; fileRef = A5159DD5FFD4CEA2420E4957 /* voice-eric-mic-changed.m4a */; };
+		064A7C100DCB3C6C4896A8FC /* voice-eric-note-19.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 669E05D51DE8FDFE02889722 /* voice-eric-note-19.m4a */; };
+		07A790F212B9D8A96F60853F /* voice-sarah-note-10.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 6B12EF8BEB313F7A9279FB41 /* voice-sarah-note-10.m4a */; };
+		07D3810E719694E8E6A5534E /* HandsFreeCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A167F31056BC2D00C4BE473 /* HandsFreeCapture.swift */; };
+		0BD2E489A747B9E627F54BFD /* voice-sarah-problem.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 129061B442A1B910B26FF0FB /* voice-sarah-problem.m4a */; };
+		0BFBE788D0417C8477A49068 /* voice-sarah-resumed.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 0EC42DC2EF1BEC1C711FAEC8 /* voice-sarah-resumed.m4a */; };
+		0C079C597A58C6BAC0EEAA62 /* voice-eric-saved.m4a in Resources */ = {isa = PBXBuildFile; fileRef = D38DE5480FDECF8776B6C333 /* voice-eric-saved.m4a */; };
+		0C7FFD92CDFDB8B91BB95482 /* voice-sarah-nothing-saved.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 06969669E29C581BFBF77C9E /* voice-sarah-nothing-saved.m4a */; };
+		0C89A3E112EAF4A915E475DE /* voice-sarah-help.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 64652992A3493B972F8DB14C /* voice-sarah-help.m4a */; };
+		0FF726F3178BB2A40FE775E2 /* chime-undone.wav in Resources */ = {isa = PBXBuildFile; fileRef = 47BAB40D6FAB901FD771CACA /* chime-undone.wav */; };
 		147E74A78D1F95D2D721E077 /* RecordingAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD0F4009414FCC78BE2851C3 /* RecordingAttributes.swift */; };
+		1683DBEE44783FFAF9E3C980 /* voice-eric-note-14.m4a in Resources */ = {isa = PBXBuildFile; fileRef = C047CD669FFDAD4BB911A389 /* voice-eric-note-14.m4a */; };
+		1797CBB72D02C0214D2D9832 /* voice-sarah-note-13.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 903CB3D0C7C7659D98598337 /* voice-sarah-note-13.m4a */; };
+		197DCB2E94AB9F3A73C46391 /* voice-eric-help.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 4E64BEE2B5767AD91BCFC9EF /* voice-eric-help.m4a */; };
 		19CB46AE2BDA6555435A5099 /* LaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D01A2F1E8C3445D6D2B6749 /* LaunchTests.swift */; };
+		1A2A81FECEBFDC7B1BDDE557 /* voice-sarah-note-12.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 95A73B0C4BA2361DAA68364D /* voice-sarah-note-12.m4a */; };
+		1DCE459BDC91A7C2A28831C5 /* voice-sarah-note-15.m4a in Resources */ = {isa = PBXBuildFile; fileRef = D31A2E88665386FAE708276C /* voice-sarah-note-15.m4a */; };
+		1DD6D2F4C9675C5E9FB90CC8 /* voice-eric-ready.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 9BEBE14BCA920CC9D3C9B14C /* voice-eric-ready.m4a */; };
+		1EA313C034F608A2325206AF /* voice-sarah-note-4.m4a in Resources */ = {isa = PBXBuildFile; fileRef = F9AE3D002DE385595BD28B3E /* voice-sarah-note-4.m4a */; };
 		1ED921A85954AEE91A3DA0AA /* Style.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E0CDFB9D3398B3E9C3CBAA /* Style.swift */; };
+		207EEF506BFDB15CFBF91183 /* HandsFreeSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA52525C3205FFA765222D14 /* HandsFreeSettings.swift */; };
+		22F7EE3421EC8C32B0762896 /* voice-eric-note-2.m4a in Resources */ = {isa = PBXBuildFile; fileRef = E5AE62A1DA2F8F0F4F4EE03D /* voice-eric-note-2.m4a */; };
 		247AFFCE5AB2C5FEF566E9D0 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = CCBE3B8F63C084B0754C9971 /* FluidAudio */; };
+		25A14305C412DEA85E88B48E /* voice-sarah-note-6.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 358E2ED9D81230DBCF01B8BB /* voice-sarah-note-6.m4a */; };
+		25FB89EB9A9BC9999A1F12EC /* voice-eric-note-7.m4a in Resources */ = {isa = PBXBuildFile; fileRef = F5A225B543E861F8E93265C6 /* voice-eric-note-7.m4a */; };
+		29274849544D37303AB693ED /* voice-eric-note-17.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 8A8BC70D5406A158E5C7C527 /* voice-eric-note-17.m4a */; };
+		2A6CE05BC97C55FC79E0A26F /* chime-ready.wav in Resources */ = {isa = PBXBuildFile; fileRef = 64D2D141B959FF1769F950D3 /* chime-ready.wav */; };
+		2D5FADB2907D0A736B66BC0B /* voice-eric-commands-stopped.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 112451EC7BB3EAD4550CB1D4 /* voice-eric-commands-stopped.m4a */; };
+		31042EFD755801C0F12C13A2 /* voice-sarah-note-14.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 92233778FF11B4D9AF7AB886 /* voice-sarah-note-14.m4a */; };
+		317C4B76F5776E420FF2A73C /* voice-eric-note-8.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 950DD25CEB44E5FB56446DDC /* voice-eric-note-8.m4a */; };
+		325F66812269F661175CD725 /* voice-sarah-note-11.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 4E9384E417D027311B79FB97 /* voice-sarah-note-11.m4a */; };
+		35F8C2D53DC434BA593B8486 /* voice-eric-note-9.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 11DC1791438DA9098AEEA165 /* voice-eric-note-9.m4a */; };
 		3A27A6DA443EB24287F8B544 /* Pairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 978E50D910F96CCD15662092 /* Pairing.swift */; };
+		3B385F402CD429F0D5BAA84F /* voice-eric-note-12.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 782236AC358FBA60EC332AF0 /* voice-eric-note-12.m4a */; };
 		4081BCC19707E5FC45AD3539 /* MemoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A77A1D8626E369C0CF4ACEB2 /* MemoDetailView.swift */; };
 		4117BC28C7B9DA971716BB42 /* EchoActivityBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FE33BCF89024F774FD88724 /* EchoActivityBundle.swift */; };
 		41923B5D4585336A97DB1968 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F3B11EA5067F7D44983480DA /* Assets.xcassets */; };
+		46653121405E3B77EED66617 /* voice-eric-discarded.m4a in Resources */ = {isa = PBXBuildFile; fileRef = BF217F521995C0B6603F8130 /* voice-eric-discarded.m4a */; };
+		48A00F318A7A7732A32EC2F7 /* voice-sarah-note-18.m4a in Resources */ = {isa = PBXBuildFile; fileRef = A3E4095221D7516E740DA45E /* voice-sarah-note-18.m4a */; };
 		4EC954B08124A996399B3930 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4D83BB0B96CC5B63DDE8C36 /* HomeView.swift */; };
 		51058A976CE82EAC906B777D /* AppLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCC98915D2A3AC638333D6BE /* AppLock.swift */; };
+		525AC19C9B5D18252F8CC520 /* chime-note.wav in Resources */ = {isa = PBXBuildFile; fileRef = 34CCF8302664F9C55F97F6D1 /* chime-note.wav */; };
+		5291B1219EB52338C2844CFE /* NoteCutter.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACE5EB8732D496829729E72D /* NoteCutter.swift */; };
+		58E113F3C314C9F86E9AAE93 /* voice-sarah-new-note.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 9F7999238E778EA0B90F72D7 /* voice-sarah-new-note.m4a */; };
+		5D417D5BBA62E11488487217 /* voice-eric-note-4.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 170240F563D4C9A2C946217C /* voice-eric-note-4.m4a */; };
+		6343EB9ADB4EF0DD63C8AB58 /* voice-sarah-note-1.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 8F7F960376CCE298E7DD711B /* voice-sarah-note-1.m4a */; };
+		6606C78A04E2028E23B1630F /* voice-eric-note-13.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 97CA2F603AE2BE17B0DEEBF1 /* voice-eric-note-13.m4a */; };
+		6744EF7CDE726EA3E6D8615B /* voice-eric-note-16.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 35DD5A649D81058005C9E3FD /* voice-eric-note-16.m4a */; };
+		6AEB2E2901E4534CF7D55040 /* voice-eric-note-10.m4a in Resources */ = {isa = PBXBuildFile; fileRef = F286E661B555255B7E65E8AE /* voice-eric-note-10.m4a */; };
+		7006D36FECEEF3806B215B20 /* HandsFreeCues.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F8EBE8C49E586E873F6786 /* HandsFreeCues.swift */; };
+		7055187FA0CAB8063A458194 /* voice-sarah-note-19.m4a in Resources */ = {isa = PBXBuildFile; fileRef = F88B93ADB751E943887381A9 /* voice-sarah-note-19.m4a */; };
+		7106AF57358E7E4B31B9CB14 /* voice-sarah-note-7.m4a in Resources */ = {isa = PBXBuildFile; fileRef = CC9FC15B8BA412FED1D65853 /* voice-sarah-note-7.m4a */; };
 		7D985C021013D7340AB683DC /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 730D25536705CAB9B97A9417 /* AppModel.swift */; };
+		7F94E149C752EAFA11501A1A /* voice-eric-note-18.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 9645EC1176D1D980815DA557 /* voice-eric-note-18.m4a */; };
+		83391036B28AAA7AE5D603A0 /* chime-paused.wav in Resources */ = {isa = PBXBuildFile; fileRef = 1C5F290B0D5196A0A9C859F0 /* chime-paused.wav */; };
 		846ADC2ABA7E1B1744C90B51 /* RecordingActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1235315645A903E59C58582E /* RecordingActivity.swift */; };
+		84B9D40EFA6B280ECDA23107 /* voice-sarah-note-20.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 7825C7A94BCA98C2D86A008C /* voice-sarah-note-20.m4a */; };
 		8502742ABDB58612D1F4210C /* EchoActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 62F5BCCDF8F359D3904B152B /* EchoActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		86C747B99928A1811430908E /* voice-sarah-nothing-to-undo.m4a in Resources */ = {isa = PBXBuildFile; fileRef = AA466BD623B4BD17711C99C2 /* voice-sarah-nothing-to-undo.m4a */; };
+		89A05A865C9AEB2692B492AA /* voice-sarah-note-3.m4a in Resources */ = {isa = PBXBuildFile; fileRef = B8749038F4128CDFE8AA30F1 /* voice-sarah-note-3.m4a */; };
+		8AA1E8ACC818AEE2ACC924B5 /* voice-sarah-paused.m4a in Resources */ = {isa = PBXBuildFile; fileRef = C2027F3797E21531924969CC /* voice-sarah-paused.m4a */; };
+		8D438384ACE80289DC232314 /* HandsFreeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9BC5B4B04F5928AE17E768A /* HandsFreeView.swift */; };
+		8D54E71472C2BD56E07FC60F /* voice-eric-paused.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 1FF5EFBB17CAF2B72B423A70 /* voice-eric-paused.m4a */; };
+		9025BBCBD2B84F219318ED68 /* chime-problem.wav in Resources */ = {isa = PBXBuildFile; fileRef = D4E72FBFD8D4427766057018 /* chime-problem.wav */; };
+		913D8F4A1A1A879EC3CA4353 /* voice-sarah-restored.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 32958EFC3E7F2772569AF472 /* voice-sarah-restored.m4a */; };
+		917C477770A679D13DA9DBF1 /* chime-count-1.wav in Resources */ = {isa = PBXBuildFile; fileRef = AA93042760C1E6FC003FACC1 /* chime-count-1.wav */; };
+		91E8FF4172062BDC2D99FF77 /* voice-eric-note-15.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 9B1F9F17D17BE950E7763E7E /* voice-eric-note-15.m4a */; };
+		922C2E9BDDDAB394775EE922 /* voice-sarah-note-9.m4a in Resources */ = {isa = PBXBuildFile; fileRef = AF00204BDEE7BD027031182C /* voice-sarah-note-9.m4a */; };
+		941A7026618DCEE67DDA51B9 /* CommandSpotter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C4D5E6CB1D9F24B1841669E /* CommandSpotter.swift */; };
 		94544309F1DFA84883C565DD /* ShieldWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECA6C6315377489C26682FA5 /* ShieldWindow.swift */; };
 		9626F62FA82FB86C44CA7E30 /* SpeechModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3168C21D773FCDA10FF0B6 /* SpeechModel.swift */; };
+		96777BCA4229D8B3F005F8AA /* voice-eric-note-20.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 4651DA9C20803DE12DFC23CB /* voice-eric-note-20.m4a */; };
+		9717B1EBD09651F5677B4629 /* voice-sarah-commands-stopped.m4a in Resources */ = {isa = PBXBuildFile; fileRef = BBFA4D9BB377E380B8C50F8D /* voice-sarah-commands-stopped.m4a */; };
 		97731746483E46EF507D1149 /* EchoMobileApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54B3E119FBB1D32553B732C6 /* EchoMobileApp.swift */; };
+		9F31F7A68126D53160E90169 /* CommandListener.swift in Sources */ = {isa = PBXBuildFile; fileRef = C49219754C01EC13DAE6FAF9 /* CommandListener.swift */; };
+		A154996424CB628309589825 /* voice-eric-nothing-saved.m4a in Resources */ = {isa = PBXBuildFile; fileRef = BCEF2B52D035C56A141B45AB /* voice-eric-nothing-saved.m4a */; };
+		A35FAD165350C1B4475E584D /* voice-eric-restored.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 9AFCCD978E526858B0694077 /* voice-eric-restored.m4a */; };
+		A608038CCB34F59661D1F1DA /* voice-sarah-undone.m4a in Resources */ = {isa = PBXBuildFile; fileRef = A1F9E45359227912A25373D2 /* voice-sarah-undone.m4a */; };
 		A7FFE4714B09358BAEB99642 /* Memo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B31D7B5F3CED3944D7632F89 /* Memo.swift */; };
+		AA3AC8A8062F3EF1332356D5 /* chime-count-2.wav in Resources */ = {isa = PBXBuildFile; fileRef = 44C263E7C61D25FAEC4FD39E /* chime-count-2.wav */; };
+		AC230D30FA33D1ED55E9F551 /* voice-sarah-discarded.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 89562ACB108CF7ABB8265BDA /* voice-sarah-discarded.m4a */; };
+		AFBF5CB9E8D27CBF39828C08 /* voice-eric-note-6.m4a in Resources */ = {isa = PBXBuildFile; fileRef = D69A6C9797061FF1136D045F /* voice-eric-note-6.m4a */; };
 		B2EE31E73C18FCEBB354A7F6 /* LockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20564BB59516930FEDF8B6D /* LockView.swift */; };
+		B4FFAE02AB5426B03989390D /* chime-count-4.wav in Resources */ = {isa = PBXBuildFile; fileRef = 5B2DF66AE9C0DD968279302D /* chime-count-4.wav */; };
 		B5AF1602BC53AC23BC04ACBE /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8984D7F25FE18889215D78EF /* OnboardingView.swift */; };
 		B8EE93FF9B7B6450B10E3E78 /* Recorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 813B6E3E9A89D34C61922CDB /* Recorder.swift */; };
+		BC3CD6E6C02B79A556F6C96F /* voice-eric-resumed.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 1A8BBB4E545953A2EEA5917E /* voice-eric-resumed.m4a */; };
+		BF2AA7A07FED9AD9AD4A1F3C /* voice-sarah-note-8.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 8E7121446ECB2ECFDE81BAA2 /* voice-sarah-note-8.m4a */; };
+		C3CCDEFF962CD746E382BF0D /* HandsFreeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C28FB83C9A34637B0E5920A /* HandsFreeSession.swift */; };
+		C8EF4FB4BCC1886B99079E87 /* chime-count-3.wav in Resources */ = {isa = PBXBuildFile; fileRef = BEC6376AE9F0CED1303F1F29 /* chime-count-3.wav */; };
+		C944311EA7AD70407A849D6A /* voice-sarah-saved.m4a in Resources */ = {isa = PBXBuildFile; fileRef = B8E70E3B7280810572793ADA /* voice-sarah-saved.m4a */; };
+		C9EF949083E3B07F6925EF60 /* voice-sarah-note-2.m4a in Resources */ = {isa = PBXBuildFile; fileRef = AAFF70FEC72121DFE906FB82 /* voice-sarah-note-2.m4a */; };
+		CA2E7F4A8D5E7CAEA0E2021E /* chime-resumed.wav in Resources */ = {isa = PBXBuildFile; fileRef = E1A2D60F1ECDF526F9523AB3 /* chime-resumed.wav */; };
+		CD00534FFD2D987C34CB1029 /* voice-sarah-mic-changed.m4a in Resources */ = {isa = PBXBuildFile; fileRef = C3833017B563486A1AFBE5FA /* voice-sarah-mic-changed.m4a */; };
 		CDBD45924EEC79EB6A183B1B /* PairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38397772D1FDBE00F5B32698 /* PairingView.swift */; };
 		CFD10C5D48772876DE6586F2 /* DebugHooks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FB3B1F828677F68DA48C9BE /* DebugHooks.swift */; };
+		D1D9CB1747569E3675C4781F /* chime-discarded.wav in Resources */ = {isa = PBXBuildFile; fileRef = 72FB2BD88E1BA5BA88EC2BC0 /* chime-discarded.wav */; };
+		D2699D3A568E899106E72589 /* voice-sarah-ready.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 536382B4EB9C7CF7703B76F1 /* voice-sarah-ready.m4a */; };
 		D55E8D688925E1B0D16C5AD4 /* MemoStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0AB899E18D17459D6055F8 /* MemoStore.swift */; };
+		D6B4CEF1A25DDF1D566F8C1A /* voice-eric-note-1.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 1AC263F81AD0B63ABBA95159 /* voice-eric-note-1.m4a */; };
+		D70CC2C55890FA7E6B2F716C /* NoteDesk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE0FB281A3A12EE6FCC5443 /* NoteDesk.swift */; };
 		DBF197F76C4F972341BA31E7 /* RecordingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC9853BC046C332A1508908F /* RecordingView.swift */; };
+		DD18ABBC2F6DD133BDCAD48E /* voice-eric-nothing-to-undo.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 231FC4F1F77880FA4CA1C52F /* voice-eric-nothing-to-undo.m4a */; };
+		DE57F108734559843A93F75F /* voice-eric-note-11.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 58FD555395D4689F33F75A48 /* voice-eric-note-11.m4a */; };
+		DF3223D1FAFF1E23913EAD92 /* voice-sarah-note-5.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 7D7A5F52DEB2E23B491FEE42 /* voice-sarah-note-5.m4a */; };
+		DF34EC60DA40E61AADEF1B10 /* voice-eric-note-5.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 99EEC91F3A3926FB3D7FDB5C /* voice-eric-note-5.m4a */; };
 		E7F9FD1E30B78AA554CCA270 /* RecordingAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD0F4009414FCC78BE2851C3 /* RecordingAttributes.swift */; };
 		F125E18FCFA810E5D32C7844 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 552D5231727BB24541FD681B /* SettingsView.swift */; };
+		F401D6C93EFC35B3E5AD0281 /* voice-eric-problem.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 7096EAC8D6CE626043312AC9 /* voice-eric-problem.m4a */; };
+		F7190497E06D622866408BE9 /* voice-sarah-note-16.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 7029ED375855006398A33E90 /* voice-sarah-note-16.m4a */; };
+		F7D4C5DFCF422B09F0BA1D13 /* voice-eric-undone.m4a in Resources */ = {isa = PBXBuildFile; fileRef = DF2A90910513AA30F5A74510 /* voice-eric-undone.m4a */; };
+		F7D9862F74AF49C79D901DAD /* chime-saved.wav in Resources */ = {isa = PBXBuildFile; fileRef = 006402806B4DD16281DED303 /* chime-saved.wav */; };
+		F80091EDFEA16CED68D5728C /* voice-sarah-note-17.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 748E47390B763CA3519804A9 /* voice-sarah-note-17.m4a */; };
+		F81483CF90E6D26CB4B7620A /* voice-eric-new-note.m4a in Resources */ = {isa = PBXBuildFile; fileRef = CBE62E914790C614E4C56E14 /* voice-eric-new-note.m4a */; };
 		FA5F99B870FFC45B561A8CF9 /* RecordingLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB8D08A3947F473179C96E7 /* RecordingLiveActivity.swift */; };
 		FC1DC04EA9EDDE218614C91E /* MacLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA8B3316F8A5300174F89D48 /* MacLink.swift */; };
+		FE5138FD8018E4AFF78CE7AE /* voice-eric-note-3.m4a in Resources */ = {isa = PBXBuildFile; fileRef = F6928DE5BAD47F48EA7CB6C4 /* voice-eric-note-3.m4a */; };
+		FFD6D8463417C5D526CFEEA0 /* HandsFreeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA19BBE43F86970ADCF0BF09 /* HandsFreeTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		0AE9B7333ECB6012B6A9095E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 90FCAFD0B0E647247B475914 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DEB86B6E5C8C221B30D7F1F9;
+			remoteInfo = EchoMobile;
+		};
 		69B98E2911C19C1FC7E03C95 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 90FCAFD0B0E647247B475914 /* Project object */;
@@ -69,35 +167,128 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		006402806B4DD16281DED303 /* chime-saved.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "chime-saved.wav"; sourceTree = "<group>"; };
+		06969669E29C581BFBF77C9E /* voice-sarah-nothing-saved.m4a */ = {isa = PBXFileReference; path = "voice-sarah-nothing-saved.m4a"; sourceTree = "<group>"; };
+		0C4D5E6CB1D9F24B1841669E /* CommandSpotter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandSpotter.swift; sourceTree = "<group>"; };
+		0EC42DC2EF1BEC1C711FAEC8 /* voice-sarah-resumed.m4a */ = {isa = PBXFileReference; path = "voice-sarah-resumed.m4a"; sourceTree = "<group>"; };
 		0F15500F8D8423CCD57A3C53 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		112451EC7BB3EAD4550CB1D4 /* voice-eric-commands-stopped.m4a */ = {isa = PBXFileReference; path = "voice-eric-commands-stopped.m4a"; sourceTree = "<group>"; };
+		11DC1791438DA9098AEEA165 /* voice-eric-note-9.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-9.m4a"; sourceTree = "<group>"; };
 		1235315645A903E59C58582E /* RecordingActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingActivity.swift; sourceTree = "<group>"; };
+		129061B442A1B910B26FF0FB /* voice-sarah-problem.m4a */ = {isa = PBXFileReference; path = "voice-sarah-problem.m4a"; sourceTree = "<group>"; };
+		170240F563D4C9A2C946217C /* voice-eric-note-4.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-4.m4a"; sourceTree = "<group>"; };
+		1A8BBB4E545953A2EEA5917E /* voice-eric-resumed.m4a */ = {isa = PBXFileReference; path = "voice-eric-resumed.m4a"; sourceTree = "<group>"; };
+		1AC263F81AD0B63ABBA95159 /* voice-eric-note-1.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-1.m4a"; sourceTree = "<group>"; };
+		1AE0FB281A3A12EE6FCC5443 /* NoteDesk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteDesk.swift; sourceTree = "<group>"; };
+		1C5F290B0D5196A0A9C859F0 /* chime-paused.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "chime-paused.wav"; sourceTree = "<group>"; };
+		1FF5EFBB17CAF2B72B423A70 /* voice-eric-paused.m4a */ = {isa = PBXFileReference; path = "voice-eric-paused.m4a"; sourceTree = "<group>"; };
+		231FC4F1F77880FA4CA1C52F /* voice-eric-nothing-to-undo.m4a */ = {isa = PBXFileReference; path = "voice-eric-nothing-to-undo.m4a"; sourceTree = "<group>"; };
 		2D01A2F1E8C3445D6D2B6749 /* LaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchTests.swift; sourceTree = "<group>"; };
 		2FE33BCF89024F774FD88724 /* EchoActivityBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EchoActivityBundle.swift; sourceTree = "<group>"; };
 		307A9CED995CB357F3A4219B /* EchoMobile.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = EchoMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		32958EFC3E7F2772569AF472 /* voice-sarah-restored.m4a */ = {isa = PBXFileReference; path = "voice-sarah-restored.m4a"; sourceTree = "<group>"; };
+		34CCF8302664F9C55F97F6D1 /* chime-note.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "chime-note.wav"; sourceTree = "<group>"; };
+		358E2ED9D81230DBCF01B8BB /* voice-sarah-note-6.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-6.m4a"; sourceTree = "<group>"; };
+		35DD5A649D81058005C9E3FD /* voice-eric-note-16.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-16.m4a"; sourceTree = "<group>"; };
 		38397772D1FDBE00F5B32698 /* PairingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingView.swift; sourceTree = "<group>"; };
 		3A3168C21D773FCDA10FF0B6 /* SpeechModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechModel.swift; sourceTree = "<group>"; };
+		44C263E7C61D25FAEC4FD39E /* chime-count-2.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "chime-count-2.wav"; sourceTree = "<group>"; };
+		4651DA9C20803DE12DFC23CB /* voice-eric-note-20.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-20.m4a"; sourceTree = "<group>"; };
+		47BAB40D6FAB901FD771CACA /* chime-undone.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "chime-undone.wav"; sourceTree = "<group>"; };
+		4E64BEE2B5767AD91BCFC9EF /* voice-eric-help.m4a */ = {isa = PBXFileReference; path = "voice-eric-help.m4a"; sourceTree = "<group>"; };
+		4E9384E417D027311B79FB97 /* voice-sarah-note-11.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-11.m4a"; sourceTree = "<group>"; };
+		536382B4EB9C7CF7703B76F1 /* voice-sarah-ready.m4a */ = {isa = PBXFileReference; path = "voice-sarah-ready.m4a"; sourceTree = "<group>"; };
 		54B3E119FBB1D32553B732C6 /* EchoMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EchoMobileApp.swift; sourceTree = "<group>"; };
 		552D5231727BB24541FD681B /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		58FD555395D4689F33F75A48 /* voice-eric-note-11.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-11.m4a"; sourceTree = "<group>"; };
+		5A167F31056BC2D00C4BE473 /* HandsFreeCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandsFreeCapture.swift; sourceTree = "<group>"; };
+		5B2DF66AE9C0DD968279302D /* chime-count-4.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "chime-count-4.wav"; sourceTree = "<group>"; };
+		5C28FB83C9A34637B0E5920A /* HandsFreeSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandsFreeSession.swift; sourceTree = "<group>"; };
 		5D0AB899E18D17459D6055F8 /* MemoStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoStore.swift; sourceTree = "<group>"; };
 		62F5BCCDF8F359D3904B152B /* EchoActivity.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = EchoActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		64652992A3493B972F8DB14C /* voice-sarah-help.m4a */ = {isa = PBXFileReference; path = "voice-sarah-help.m4a"; sourceTree = "<group>"; };
+		64D2D141B959FF1769F950D3 /* chime-ready.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "chime-ready.wav"; sourceTree = "<group>"; };
+		669E05D51DE8FDFE02889722 /* voice-eric-note-19.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-19.m4a"; sourceTree = "<group>"; };
+		6B12EF8BEB313F7A9279FB41 /* voice-sarah-note-10.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-10.m4a"; sourceTree = "<group>"; };
 		6FB3B1F828677F68DA48C9BE /* DebugHooks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugHooks.swift; sourceTree = "<group>"; };
+		7029ED375855006398A33E90 /* voice-sarah-note-16.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-16.m4a"; sourceTree = "<group>"; };
+		7096EAC8D6CE626043312AC9 /* voice-eric-problem.m4a */ = {isa = PBXFileReference; path = "voice-eric-problem.m4a"; sourceTree = "<group>"; };
+		72C997A8329F34C109122C0A /* chime-count-5.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "chime-count-5.wav"; sourceTree = "<group>"; };
+		72FB2BD88E1BA5BA88EC2BC0 /* chime-discarded.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "chime-discarded.wav"; sourceTree = "<group>"; };
 		730D25536705CAB9B97A9417 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		748E47390B763CA3519804A9 /* voice-sarah-note-17.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-17.m4a"; sourceTree = "<group>"; };
+		782236AC358FBA60EC332AF0 /* voice-eric-note-12.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-12.m4a"; sourceTree = "<group>"; };
+		7825C7A94BCA98C2D86A008C /* voice-sarah-note-20.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-20.m4a"; sourceTree = "<group>"; };
+		7C41059FCEE7410D6713BBBC /* Echo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Echo.entitlements; sourceTree = "<group>"; };
+		7D7A5F52DEB2E23B491FEE42 /* voice-sarah-note-5.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-5.m4a"; sourceTree = "<group>"; };
 		813B6E3E9A89D34C61922CDB /* Recorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recorder.swift; sourceTree = "<group>"; };
+		89562ACB108CF7ABB8265BDA /* voice-sarah-discarded.m4a */ = {isa = PBXFileReference; path = "voice-sarah-discarded.m4a"; sourceTree = "<group>"; };
 		8984D7F25FE18889215D78EF /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		89930D698CFE5D8B228E1171 /* EchoMobileTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = EchoMobileTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8A8BC70D5406A158E5C7C527 /* voice-eric-note-17.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-17.m4a"; sourceTree = "<group>"; };
+		8E7121446ECB2ECFDE81BAA2 /* voice-sarah-note-8.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-8.m4a"; sourceTree = "<group>"; };
+		8F7F960376CCE298E7DD711B /* voice-sarah-note-1.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-1.m4a"; sourceTree = "<group>"; };
+		903CB3D0C7C7659D98598337 /* voice-sarah-note-13.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-13.m4a"; sourceTree = "<group>"; };
+		92233778FF11B4D9AF7AB886 /* voice-sarah-note-14.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-14.m4a"; sourceTree = "<group>"; };
+		950DD25CEB44E5FB56446DDC /* voice-eric-note-8.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-8.m4a"; sourceTree = "<group>"; };
+		95A73B0C4BA2361DAA68364D /* voice-sarah-note-12.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-12.m4a"; sourceTree = "<group>"; };
+		9645EC1176D1D980815DA557 /* voice-eric-note-18.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-18.m4a"; sourceTree = "<group>"; };
 		978E50D910F96CCD15662092 /* Pairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pairing.swift; sourceTree = "<group>"; };
+		97CA2F603AE2BE17B0DEEBF1 /* voice-eric-note-13.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-13.m4a"; sourceTree = "<group>"; };
+		99EEC91F3A3926FB3D7FDB5C /* voice-eric-note-5.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-5.m4a"; sourceTree = "<group>"; };
+		9AFCCD978E526858B0694077 /* voice-eric-restored.m4a */ = {isa = PBXFileReference; path = "voice-eric-restored.m4a"; sourceTree = "<group>"; };
+		9B1F9F17D17BE950E7763E7E /* voice-eric-note-15.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-15.m4a"; sourceTree = "<group>"; };
+		9BEBE14BCA920CC9D3C9B14C /* voice-eric-ready.m4a */ = {isa = PBXFileReference; path = "voice-eric-ready.m4a"; sourceTree = "<group>"; };
+		9F7999238E778EA0B90F72D7 /* voice-sarah-new-note.m4a */ = {isa = PBXFileReference; path = "voice-sarah-new-note.m4a"; sourceTree = "<group>"; };
+		A1F9E45359227912A25373D2 /* voice-sarah-undone.m4a */ = {isa = PBXFileReference; path = "voice-sarah-undone.m4a"; sourceTree = "<group>"; };
 		A20564BB59516930FEDF8B6D /* LockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockView.swift; sourceTree = "<group>"; };
+		A3E4095221D7516E740DA45E /* voice-sarah-note-18.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-18.m4a"; sourceTree = "<group>"; };
 		A4D83BB0B96CC5B63DDE8C36 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		A5159DD5FFD4CEA2420E4957 /* voice-eric-mic-changed.m4a */ = {isa = PBXFileReference; path = "voice-eric-mic-changed.m4a"; sourceTree = "<group>"; };
 		A6E0CDFB9D3398B3E9C3CBAA /* Style.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Style.swift; sourceTree = "<group>"; };
 		A77A1D8626E369C0CF4ACEB2 /* MemoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoDetailView.swift; sourceTree = "<group>"; };
+		AA19BBE43F86970ADCF0BF09 /* HandsFreeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandsFreeTests.swift; sourceTree = "<group>"; };
+		AA466BD623B4BD17711C99C2 /* voice-sarah-nothing-to-undo.m4a */ = {isa = PBXFileReference; path = "voice-sarah-nothing-to-undo.m4a"; sourceTree = "<group>"; };
+		AA93042760C1E6FC003FACC1 /* chime-count-1.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "chime-count-1.wav"; sourceTree = "<group>"; };
+		AAFF70FEC72121DFE906FB82 /* voice-sarah-note-2.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-2.m4a"; sourceTree = "<group>"; };
+		ACE5EB8732D496829729E72D /* NoteCutter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCutter.swift; sourceTree = "<group>"; };
 		AEB8D08A3947F473179C96E7 /* RecordingLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingLiveActivity.swift; sourceTree = "<group>"; };
+		AF00204BDEE7BD027031182C /* voice-sarah-note-9.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-9.m4a"; sourceTree = "<group>"; };
 		B31D7B5F3CED3944D7632F89 /* Memo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Memo.swift; sourceTree = "<group>"; };
+		B8749038F4128CDFE8AA30F1 /* voice-sarah-note-3.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-3.m4a"; sourceTree = "<group>"; };
+		B8E70E3B7280810572793ADA /* voice-sarah-saved.m4a */ = {isa = PBXFileReference; path = "voice-sarah-saved.m4a"; sourceTree = "<group>"; };
 		B93B60C1305239A0F3FC6340 /* EchoMobileUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = EchoMobileUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BA52525C3205FFA765222D14 /* HandsFreeSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandsFreeSettings.swift; sourceTree = "<group>"; };
 		BA8B3316F8A5300174F89D48 /* MacLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLink.swift; sourceTree = "<group>"; };
+		BBFA4D9BB377E380B8C50F8D /* voice-sarah-commands-stopped.m4a */ = {isa = PBXFileReference; path = "voice-sarah-commands-stopped.m4a"; sourceTree = "<group>"; };
 		BCC98915D2A3AC638333D6BE /* AppLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLock.swift; sourceTree = "<group>"; };
+		BCEF2B52D035C56A141B45AB /* voice-eric-nothing-saved.m4a */ = {isa = PBXFileReference; path = "voice-eric-nothing-saved.m4a"; sourceTree = "<group>"; };
+		BEC6376AE9F0CED1303F1F29 /* chime-count-3.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "chime-count-3.wav"; sourceTree = "<group>"; };
+		BF217F521995C0B6603F8130 /* voice-eric-discarded.m4a */ = {isa = PBXFileReference; path = "voice-eric-discarded.m4a"; sourceTree = "<group>"; };
+		C047CD669FFDAD4BB911A389 /* voice-eric-note-14.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-14.m4a"; sourceTree = "<group>"; };
+		C2027F3797E21531924969CC /* voice-sarah-paused.m4a */ = {isa = PBXFileReference; path = "voice-sarah-paused.m4a"; sourceTree = "<group>"; };
+		C3833017B563486A1AFBE5FA /* voice-sarah-mic-changed.m4a */ = {isa = PBXFileReference; path = "voice-sarah-mic-changed.m4a"; sourceTree = "<group>"; };
+		C49219754C01EC13DAE6FAF9 /* CommandListener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandListener.swift; sourceTree = "<group>"; };
+		CBE62E914790C614E4C56E14 /* voice-eric-new-note.m4a */ = {isa = PBXFileReference; path = "voice-eric-new-note.m4a"; sourceTree = "<group>"; };
+		CC9FC15B8BA412FED1D65853 /* voice-sarah-note-7.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-7.m4a"; sourceTree = "<group>"; };
 		CD0F4009414FCC78BE2851C3 /* RecordingAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingAttributes.swift; sourceTree = "<group>"; };
+		D31A2E88665386FAE708276C /* voice-sarah-note-15.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-15.m4a"; sourceTree = "<group>"; };
+		D38DE5480FDECF8776B6C333 /* voice-eric-saved.m4a */ = {isa = PBXFileReference; path = "voice-eric-saved.m4a"; sourceTree = "<group>"; };
+		D4E72FBFD8D4427766057018 /* chime-problem.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "chime-problem.wav"; sourceTree = "<group>"; };
+		D69A6C9797061FF1136D045F /* voice-eric-note-6.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-6.m4a"; sourceTree = "<group>"; };
 		DD24A71F297C508FEEEFFA9F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		DF2A90910513AA30F5A74510 /* voice-eric-undone.m4a */ = {isa = PBXFileReference; path = "voice-eric-undone.m4a"; sourceTree = "<group>"; };
+		E1A2D60F1ECDF526F9523AB3 /* chime-resumed.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "chime-resumed.wav"; sourceTree = "<group>"; };
+		E5AE62A1DA2F8F0F4F4EE03D /* voice-eric-note-2.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-2.m4a"; sourceTree = "<group>"; };
+		E9BC5B4B04F5928AE17E768A /* HandsFreeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandsFreeView.swift; sourceTree = "<group>"; };
 		ECA6C6315377489C26682FA5 /* ShieldWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShieldWindow.swift; sourceTree = "<group>"; };
+		F286E661B555255B7E65E8AE /* voice-eric-note-10.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-10.m4a"; sourceTree = "<group>"; };
 		F3B11EA5067F7D44983480DA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F5A225B543E861F8E93265C6 /* voice-eric-note-7.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-7.m4a"; sourceTree = "<group>"; };
+		F6928DE5BAD47F48EA7CB6C4 /* voice-eric-note-3.m4a */ = {isa = PBXFileReference; path = "voice-eric-note-3.m4a"; sourceTree = "<group>"; };
+		F88B93ADB751E943887381A9 /* voice-sarah-note-19.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-19.m4a"; sourceTree = "<group>"; };
+		F8F8EBE8C49E586E873F6786 /* HandsFreeCues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandsFreeCues.swift; sourceTree = "<group>"; };
+		F9AE3D002DE385595BD28B3E /* voice-sarah-note-4.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-4.m4a"; sourceTree = "<group>"; };
 		FC9853BC046C332A1508908F /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -113,15 +304,33 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		02F68A92BDFA470DEBD65FD8 /* HandsFree */ = {
+			isa = PBXGroup;
+			children = (
+				C49219754C01EC13DAE6FAF9 /* CommandListener.swift */,
+				0C4D5E6CB1D9F24B1841669E /* CommandSpotter.swift */,
+				5A167F31056BC2D00C4BE473 /* HandsFreeCapture.swift */,
+				F8F8EBE8C49E586E873F6786 /* HandsFreeCues.swift */,
+				5C28FB83C9A34637B0E5920A /* HandsFreeSession.swift */,
+				BA52525C3205FFA765222D14 /* HandsFreeSettings.swift */,
+				ACE5EB8732D496829729E72D /* NoteCutter.swift */,
+				1AE0FB281A3A12EE6FCC5443 /* NoteDesk.swift */,
+			);
+			path = HandsFree;
+			sourceTree = "<group>";
+		};
 		0876337F2C75A19B56361C0D /* EchoMobile */ = {
 			isa = PBXGroup;
 			children = (
 				F3B11EA5067F7D44983480DA /* Assets.xcassets */,
+				7C41059FCEE7410D6713BBBC /* Echo.entitlements */,
 				DD24A71F297C508FEEEFFA9F /* Info.plist */,
 				DFEE57B26423B537524EF58F /* App */,
 				28A7EB3F62A9944C7C084FD3 /* Audio */,
+				02F68A92BDFA470DEBD65FD8 /* HandsFree */,
 				5D27EC65D5E85062CCC79387 /* Link */,
 				4CDC2BE4493D3FF6066B84F0 /* Model */,
+				D69CCF567A846FB63E15F50C /* Resources */,
 				AA26B09A9C721C432F056319 /* Speech */,
 				5796DCA96CAAA324B56526CA /* Views */,
 			);
@@ -156,6 +365,7 @@
 		5796DCA96CAAA324B56526CA /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				E9BC5B4B04F5928AE17E768A /* HandsFreeView.swift */,
 				A4D83BB0B96CC5B63DDE8C36 /* HomeView.swift */,
 				A20564BB59516930FEDF8B6D /* LockView.swift */,
 				A77A1D8626E369C0CF4ACEB2 /* MemoDetailView.swift */,
@@ -192,6 +402,7 @@
 			children = (
 				5AE004D260598B18282DC255 /* EchoActivity */,
 				0876337F2C75A19B56361C0D /* EchoMobile */,
+				DBD058C12CA81EE47318AF58 /* EchoMobileTests */,
 				23CFC04EFCE7DA755DAEC582 /* EchoMobileUITests */,
 				DD2A6610C29794EFC7D2366E /* Shared */,
 				C4CF8C32FE171B23EB367523 /* Products */,
@@ -211,9 +422,114 @@
 			children = (
 				62F5BCCDF8F359D3904B152B /* EchoActivity.appex */,
 				307A9CED995CB357F3A4219B /* EchoMobile.app */,
+				89930D698CFE5D8B228E1171 /* EchoMobileTests.xctest */,
 				B93B60C1305239A0F3FC6340 /* EchoMobileUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		D69CCF567A846FB63E15F50C /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				DA5D4068B3D6242C37D6C3E7 /* Cues */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		DA5D4068B3D6242C37D6C3E7 /* Cues */ = {
+			isa = PBXGroup;
+			children = (
+				AA93042760C1E6FC003FACC1 /* chime-count-1.wav */,
+				44C263E7C61D25FAEC4FD39E /* chime-count-2.wav */,
+				BEC6376AE9F0CED1303F1F29 /* chime-count-3.wav */,
+				5B2DF66AE9C0DD968279302D /* chime-count-4.wav */,
+				72C997A8329F34C109122C0A /* chime-count-5.wav */,
+				72FB2BD88E1BA5BA88EC2BC0 /* chime-discarded.wav */,
+				34CCF8302664F9C55F97F6D1 /* chime-note.wav */,
+				1C5F290B0D5196A0A9C859F0 /* chime-paused.wav */,
+				D4E72FBFD8D4427766057018 /* chime-problem.wav */,
+				64D2D141B959FF1769F950D3 /* chime-ready.wav */,
+				E1A2D60F1ECDF526F9523AB3 /* chime-resumed.wav */,
+				006402806B4DD16281DED303 /* chime-saved.wav */,
+				47BAB40D6FAB901FD771CACA /* chime-undone.wav */,
+				112451EC7BB3EAD4550CB1D4 /* voice-eric-commands-stopped.m4a */,
+				BF217F521995C0B6603F8130 /* voice-eric-discarded.m4a */,
+				4E64BEE2B5767AD91BCFC9EF /* voice-eric-help.m4a */,
+				A5159DD5FFD4CEA2420E4957 /* voice-eric-mic-changed.m4a */,
+				CBE62E914790C614E4C56E14 /* voice-eric-new-note.m4a */,
+				1AC263F81AD0B63ABBA95159 /* voice-eric-note-1.m4a */,
+				E5AE62A1DA2F8F0F4F4EE03D /* voice-eric-note-2.m4a */,
+				F6928DE5BAD47F48EA7CB6C4 /* voice-eric-note-3.m4a */,
+				170240F563D4C9A2C946217C /* voice-eric-note-4.m4a */,
+				99EEC91F3A3926FB3D7FDB5C /* voice-eric-note-5.m4a */,
+				D69A6C9797061FF1136D045F /* voice-eric-note-6.m4a */,
+				F5A225B543E861F8E93265C6 /* voice-eric-note-7.m4a */,
+				950DD25CEB44E5FB56446DDC /* voice-eric-note-8.m4a */,
+				11DC1791438DA9098AEEA165 /* voice-eric-note-9.m4a */,
+				F286E661B555255B7E65E8AE /* voice-eric-note-10.m4a */,
+				58FD555395D4689F33F75A48 /* voice-eric-note-11.m4a */,
+				782236AC358FBA60EC332AF0 /* voice-eric-note-12.m4a */,
+				97CA2F603AE2BE17B0DEEBF1 /* voice-eric-note-13.m4a */,
+				C047CD669FFDAD4BB911A389 /* voice-eric-note-14.m4a */,
+				9B1F9F17D17BE950E7763E7E /* voice-eric-note-15.m4a */,
+				35DD5A649D81058005C9E3FD /* voice-eric-note-16.m4a */,
+				8A8BC70D5406A158E5C7C527 /* voice-eric-note-17.m4a */,
+				9645EC1176D1D980815DA557 /* voice-eric-note-18.m4a */,
+				669E05D51DE8FDFE02889722 /* voice-eric-note-19.m4a */,
+				4651DA9C20803DE12DFC23CB /* voice-eric-note-20.m4a */,
+				BCEF2B52D035C56A141B45AB /* voice-eric-nothing-saved.m4a */,
+				231FC4F1F77880FA4CA1C52F /* voice-eric-nothing-to-undo.m4a */,
+				1FF5EFBB17CAF2B72B423A70 /* voice-eric-paused.m4a */,
+				7096EAC8D6CE626043312AC9 /* voice-eric-problem.m4a */,
+				9BEBE14BCA920CC9D3C9B14C /* voice-eric-ready.m4a */,
+				9AFCCD978E526858B0694077 /* voice-eric-restored.m4a */,
+				1A8BBB4E545953A2EEA5917E /* voice-eric-resumed.m4a */,
+				D38DE5480FDECF8776B6C333 /* voice-eric-saved.m4a */,
+				DF2A90910513AA30F5A74510 /* voice-eric-undone.m4a */,
+				BBFA4D9BB377E380B8C50F8D /* voice-sarah-commands-stopped.m4a */,
+				89562ACB108CF7ABB8265BDA /* voice-sarah-discarded.m4a */,
+				64652992A3493B972F8DB14C /* voice-sarah-help.m4a */,
+				C3833017B563486A1AFBE5FA /* voice-sarah-mic-changed.m4a */,
+				9F7999238E778EA0B90F72D7 /* voice-sarah-new-note.m4a */,
+				8F7F960376CCE298E7DD711B /* voice-sarah-note-1.m4a */,
+				AAFF70FEC72121DFE906FB82 /* voice-sarah-note-2.m4a */,
+				B8749038F4128CDFE8AA30F1 /* voice-sarah-note-3.m4a */,
+				F9AE3D002DE385595BD28B3E /* voice-sarah-note-4.m4a */,
+				7D7A5F52DEB2E23B491FEE42 /* voice-sarah-note-5.m4a */,
+				358E2ED9D81230DBCF01B8BB /* voice-sarah-note-6.m4a */,
+				CC9FC15B8BA412FED1D65853 /* voice-sarah-note-7.m4a */,
+				8E7121446ECB2ECFDE81BAA2 /* voice-sarah-note-8.m4a */,
+				AF00204BDEE7BD027031182C /* voice-sarah-note-9.m4a */,
+				6B12EF8BEB313F7A9279FB41 /* voice-sarah-note-10.m4a */,
+				4E9384E417D027311B79FB97 /* voice-sarah-note-11.m4a */,
+				95A73B0C4BA2361DAA68364D /* voice-sarah-note-12.m4a */,
+				903CB3D0C7C7659D98598337 /* voice-sarah-note-13.m4a */,
+				92233778FF11B4D9AF7AB886 /* voice-sarah-note-14.m4a */,
+				D31A2E88665386FAE708276C /* voice-sarah-note-15.m4a */,
+				7029ED375855006398A33E90 /* voice-sarah-note-16.m4a */,
+				748E47390B763CA3519804A9 /* voice-sarah-note-17.m4a */,
+				A3E4095221D7516E740DA45E /* voice-sarah-note-18.m4a */,
+				F88B93ADB751E943887381A9 /* voice-sarah-note-19.m4a */,
+				7825C7A94BCA98C2D86A008C /* voice-sarah-note-20.m4a */,
+				06969669E29C581BFBF77C9E /* voice-sarah-nothing-saved.m4a */,
+				AA466BD623B4BD17711C99C2 /* voice-sarah-nothing-to-undo.m4a */,
+				C2027F3797E21531924969CC /* voice-sarah-paused.m4a */,
+				129061B442A1B910B26FF0FB /* voice-sarah-problem.m4a */,
+				536382B4EB9C7CF7703B76F1 /* voice-sarah-ready.m4a */,
+				32958EFC3E7F2772569AF472 /* voice-sarah-restored.m4a */,
+				0EC42DC2EF1BEC1C711FAEC8 /* voice-sarah-resumed.m4a */,
+				B8E70E3B7280810572793ADA /* voice-sarah-saved.m4a */,
+				A1F9E45359227912A25373D2 /* voice-sarah-undone.m4a */,
+			);
+			path = Cues;
+			sourceTree = "<group>";
+		};
+		DBD058C12CA81EE47318AF58 /* EchoMobileTests */ = {
+			isa = PBXGroup;
+			children = (
+				AA19BBE43F86970ADCF0BF09 /* HandsFreeTests.swift */,
+			);
+			path = EchoMobileTests;
 			sourceTree = "<group>";
 		};
 		DD2A6610C29794EFC7D2366E /* Shared */ = {
@@ -257,6 +573,24 @@
 			productName = EchoMobileUITests;
 			productReference = B93B60C1305239A0F3FC6340 /* EchoMobileUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		977FEFEDF98718193F49C9E1 /* EchoMobileTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 306FA515C64BF8C71A974B03 /* Build configuration list for PBXNativeTarget "EchoMobileTests" */;
+			buildPhases = (
+				093807E58CC5825D49A77A15 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				15368E1BA1F557F31CFCAE20 /* PBXTargetDependency */,
+			);
+			name = EchoMobileTests;
+			packageProductDependencies = (
+			);
+			productName = EchoMobileTests;
+			productReference = 89930D698CFE5D8B228E1171 /* EchoMobileTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		DEB86B6E5C8C221B30D7F1F9 /* EchoMobile */ = {
 			isa = PBXNativeTarget;
@@ -310,6 +644,9 @@
 						DevelopmentTeam = 84WHKRYBX3;
 						TestTargetID = DEB86B6E5C8C221B30D7F1F9;
 					};
+					977FEFEDF98718193F49C9E1 = {
+						DevelopmentTeam = 84WHKRYBX3;
+					};
 					DEB86B6E5C8C221B30D7F1F9 = {
 						DevelopmentTeam = 84WHKRYBX3;
 						ProvisioningStyle = Automatic;
@@ -339,6 +676,7 @@
 			targets = (
 				FE20F2D959E7A83EB29C1E8C /* EchoActivity */,
 				DEB86B6E5C8C221B30D7F1F9 /* EchoMobile */,
+				977FEFEDF98718193F49C9E1 /* EchoMobileTests */,
 				2F9D90C57A19079D9EB27C5A /* EchoMobileUITests */,
 			);
 		};
@@ -350,12 +688,101 @@
 			buildActionMask = 2147483647;
 			files = (
 				41923B5D4585336A97DB1968 /* Assets.xcassets in Resources */,
+				917C477770A679D13DA9DBF1 /* chime-count-1.wav in Resources */,
+				AA3AC8A8062F3EF1332356D5 /* chime-count-2.wav in Resources */,
+				C8EF4FB4BCC1886B99079E87 /* chime-count-3.wav in Resources */,
+				B4FFAE02AB5426B03989390D /* chime-count-4.wav in Resources */,
+				031F6C1F65F6B65565FD8FC1 /* chime-count-5.wav in Resources */,
+				D1D9CB1747569E3675C4781F /* chime-discarded.wav in Resources */,
+				525AC19C9B5D18252F8CC520 /* chime-note.wav in Resources */,
+				83391036B28AAA7AE5D603A0 /* chime-paused.wav in Resources */,
+				9025BBCBD2B84F219318ED68 /* chime-problem.wav in Resources */,
+				2A6CE05BC97C55FC79E0A26F /* chime-ready.wav in Resources */,
+				CA2E7F4A8D5E7CAEA0E2021E /* chime-resumed.wav in Resources */,
+				F7D9862F74AF49C79D901DAD /* chime-saved.wav in Resources */,
+				0FF726F3178BB2A40FE775E2 /* chime-undone.wav in Resources */,
+				2D5FADB2907D0A736B66BC0B /* voice-eric-commands-stopped.m4a in Resources */,
+				46653121405E3B77EED66617 /* voice-eric-discarded.m4a in Resources */,
+				197DCB2E94AB9F3A73C46391 /* voice-eric-help.m4a in Resources */,
+				05D91E4E0FA42AAC7E957B67 /* voice-eric-mic-changed.m4a in Resources */,
+				F81483CF90E6D26CB4B7620A /* voice-eric-new-note.m4a in Resources */,
+				D6B4CEF1A25DDF1D566F8C1A /* voice-eric-note-1.m4a in Resources */,
+				6AEB2E2901E4534CF7D55040 /* voice-eric-note-10.m4a in Resources */,
+				DE57F108734559843A93F75F /* voice-eric-note-11.m4a in Resources */,
+				3B385F402CD429F0D5BAA84F /* voice-eric-note-12.m4a in Resources */,
+				6606C78A04E2028E23B1630F /* voice-eric-note-13.m4a in Resources */,
+				1683DBEE44783FFAF9E3C980 /* voice-eric-note-14.m4a in Resources */,
+				91E8FF4172062BDC2D99FF77 /* voice-eric-note-15.m4a in Resources */,
+				6744EF7CDE726EA3E6D8615B /* voice-eric-note-16.m4a in Resources */,
+				29274849544D37303AB693ED /* voice-eric-note-17.m4a in Resources */,
+				7F94E149C752EAFA11501A1A /* voice-eric-note-18.m4a in Resources */,
+				064A7C100DCB3C6C4896A8FC /* voice-eric-note-19.m4a in Resources */,
+				22F7EE3421EC8C32B0762896 /* voice-eric-note-2.m4a in Resources */,
+				96777BCA4229D8B3F005F8AA /* voice-eric-note-20.m4a in Resources */,
+				FE5138FD8018E4AFF78CE7AE /* voice-eric-note-3.m4a in Resources */,
+				5D417D5BBA62E11488487217 /* voice-eric-note-4.m4a in Resources */,
+				DF34EC60DA40E61AADEF1B10 /* voice-eric-note-5.m4a in Resources */,
+				AFBF5CB9E8D27CBF39828C08 /* voice-eric-note-6.m4a in Resources */,
+				25FB89EB9A9BC9999A1F12EC /* voice-eric-note-7.m4a in Resources */,
+				317C4B76F5776E420FF2A73C /* voice-eric-note-8.m4a in Resources */,
+				35F8C2D53DC434BA593B8486 /* voice-eric-note-9.m4a in Resources */,
+				A154996424CB628309589825 /* voice-eric-nothing-saved.m4a in Resources */,
+				DD18ABBC2F6DD133BDCAD48E /* voice-eric-nothing-to-undo.m4a in Resources */,
+				8D54E71472C2BD56E07FC60F /* voice-eric-paused.m4a in Resources */,
+				F401D6C93EFC35B3E5AD0281 /* voice-eric-problem.m4a in Resources */,
+				1DD6D2F4C9675C5E9FB90CC8 /* voice-eric-ready.m4a in Resources */,
+				A35FAD165350C1B4475E584D /* voice-eric-restored.m4a in Resources */,
+				BC3CD6E6C02B79A556F6C96F /* voice-eric-resumed.m4a in Resources */,
+				0C079C597A58C6BAC0EEAA62 /* voice-eric-saved.m4a in Resources */,
+				F7D4C5DFCF422B09F0BA1D13 /* voice-eric-undone.m4a in Resources */,
+				9717B1EBD09651F5677B4629 /* voice-sarah-commands-stopped.m4a in Resources */,
+				AC230D30FA33D1ED55E9F551 /* voice-sarah-discarded.m4a in Resources */,
+				0C89A3E112EAF4A915E475DE /* voice-sarah-help.m4a in Resources */,
+				CD00534FFD2D987C34CB1029 /* voice-sarah-mic-changed.m4a in Resources */,
+				58E113F3C314C9F86E9AAE93 /* voice-sarah-new-note.m4a in Resources */,
+				6343EB9ADB4EF0DD63C8AB58 /* voice-sarah-note-1.m4a in Resources */,
+				07A790F212B9D8A96F60853F /* voice-sarah-note-10.m4a in Resources */,
+				325F66812269F661175CD725 /* voice-sarah-note-11.m4a in Resources */,
+				1A2A81FECEBFDC7B1BDDE557 /* voice-sarah-note-12.m4a in Resources */,
+				1797CBB72D02C0214D2D9832 /* voice-sarah-note-13.m4a in Resources */,
+				31042EFD755801C0F12C13A2 /* voice-sarah-note-14.m4a in Resources */,
+				1DCE459BDC91A7C2A28831C5 /* voice-sarah-note-15.m4a in Resources */,
+				F7190497E06D622866408BE9 /* voice-sarah-note-16.m4a in Resources */,
+				F80091EDFEA16CED68D5728C /* voice-sarah-note-17.m4a in Resources */,
+				48A00F318A7A7732A32EC2F7 /* voice-sarah-note-18.m4a in Resources */,
+				7055187FA0CAB8063A458194 /* voice-sarah-note-19.m4a in Resources */,
+				C9EF949083E3B07F6925EF60 /* voice-sarah-note-2.m4a in Resources */,
+				84B9D40EFA6B280ECDA23107 /* voice-sarah-note-20.m4a in Resources */,
+				89A05A865C9AEB2692B492AA /* voice-sarah-note-3.m4a in Resources */,
+				1EA313C034F608A2325206AF /* voice-sarah-note-4.m4a in Resources */,
+				DF3223D1FAFF1E23913EAD92 /* voice-sarah-note-5.m4a in Resources */,
+				25A14305C412DEA85E88B48E /* voice-sarah-note-6.m4a in Resources */,
+				7106AF57358E7E4B31B9CB14 /* voice-sarah-note-7.m4a in Resources */,
+				BF2AA7A07FED9AD9AD4A1F3C /* voice-sarah-note-8.m4a in Resources */,
+				922C2E9BDDDAB394775EE922 /* voice-sarah-note-9.m4a in Resources */,
+				0C7FFD92CDFDB8B91BB95482 /* voice-sarah-nothing-saved.m4a in Resources */,
+				86C747B99928A1811430908E /* voice-sarah-nothing-to-undo.m4a in Resources */,
+				8AA1E8ACC818AEE2ACC924B5 /* voice-sarah-paused.m4a in Resources */,
+				0BD2E489A747B9E627F54BFD /* voice-sarah-problem.m4a in Resources */,
+				D2699D3A568E899106E72589 /* voice-sarah-ready.m4a in Resources */,
+				913D8F4A1A1A879EC3CA4353 /* voice-sarah-restored.m4a in Resources */,
+				0BFBE788D0417C8477A49068 /* voice-sarah-resumed.m4a in Resources */,
+				C944311EA7AD70407A849D6A /* voice-sarah-saved.m4a in Resources */,
+				A608038CCB34F59661D1F1DA /* voice-sarah-undone.m4a in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		093807E58CC5825D49A77A15 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FFD6D8463417C5D526CFEEA0 /* HandsFreeTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6C1AD02DB32F81FF3F028FBE /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -380,14 +807,23 @@
 			files = (
 				51058A976CE82EAC906B777D /* AppLock.swift in Sources */,
 				7D985C021013D7340AB683DC /* AppModel.swift in Sources */,
+				9F31F7A68126D53160E90169 /* CommandListener.swift in Sources */,
+				941A7026618DCEE67DDA51B9 /* CommandSpotter.swift in Sources */,
 				CFD10C5D48772876DE6586F2 /* DebugHooks.swift in Sources */,
 				97731746483E46EF507D1149 /* EchoMobileApp.swift in Sources */,
+				07D3810E719694E8E6A5534E /* HandsFreeCapture.swift in Sources */,
+				7006D36FECEEF3806B215B20 /* HandsFreeCues.swift in Sources */,
+				C3CCDEFF962CD746E382BF0D /* HandsFreeSession.swift in Sources */,
+				207EEF506BFDB15CFBF91183 /* HandsFreeSettings.swift in Sources */,
+				8D438384ACE80289DC232314 /* HandsFreeView.swift in Sources */,
 				4EC954B08124A996399B3930 /* HomeView.swift in Sources */,
 				B2EE31E73C18FCEBB354A7F6 /* LockView.swift in Sources */,
 				FC1DC04EA9EDDE218614C91E /* MacLink.swift in Sources */,
 				A7FFE4714B09358BAEB99642 /* Memo.swift in Sources */,
 				4081BCC19707E5FC45AD3539 /* MemoDetailView.swift in Sources */,
 				D55E8D688925E1B0D16C5AD4 /* MemoStore.swift in Sources */,
+				5291B1219EB52338C2844CFE /* NoteCutter.swift in Sources */,
+				D70CC2C55890FA7E6B2F716C /* NoteDesk.swift in Sources */,
 				B5AF1602BC53AC23BC04ACBE /* OnboardingView.swift in Sources */,
 				3A27A6DA443EB24287F8B544 /* Pairing.swift in Sources */,
 				CDBD45924EEC79EB6A183B1B /* PairingView.swift in Sources */,
@@ -405,6 +841,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		15368E1BA1F557F31CFCAE20 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DEB86B6E5C8C221B30D7F1F9 /* EchoMobile */;
+			targetProxy = 0AE9B7333ECB6012B6A9095E /* PBXContainerItemProxy */;
+		};
 		7F72D0C195AF59E99156DA84 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = FE20F2D959E7A83EB29C1E8C /* EchoActivity */;
@@ -418,11 +859,47 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		5EE439AC62C7993676446716 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = care.person2person.echo.mobile.tests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Echo.app/Echo";
+			};
+			name = Debug;
+		};
+		619566F63CF7084B4D1F0319 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = care.person2person.echo.mobile.tests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Echo.app/Echo";
+			};
+			name = Release;
+		};
 		8456B0183D5B5D858CFCCF46 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = EchoActivity/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -444,9 +921,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = EchoMobile/Echo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = EchoMobile/Info.plist;
@@ -624,7 +1102,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = EchoActivity/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -646,9 +1124,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = EchoMobile/Echo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = EchoMobile/Info.plist;
@@ -668,6 +1147,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		306FA515C64BF8C71A974B03 /* Build configuration list for PBXNativeTarget "EchoMobileTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5EE439AC62C7993676446716 /* Debug */,
+				619566F63CF7084B4D1F0319 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		5B324C7E0A4792C57E961274 /* Build configuration list for PBXNativeTarget "EchoActivity" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

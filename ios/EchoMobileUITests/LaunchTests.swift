@@ -11,7 +11,7 @@ final class LaunchTests: XCTestCase {
     private func launch(onboarded: Bool, lock: Bool) -> XCUIApplication {
         let app = XCUIApplication()
         // Launch arguments override saved settings, so each test starts from a known state.
-        app.launchArguments = ["-onboarded", onboarded ? "YES" : "NO", "-faceIDLock", lock ? "YES" : "NO"]
+        app.launchArguments = ["-onboarded", onboarded ? "YES" : "NO", "-faceIDLock", lock ? "YES" : "NO", "-handsFreeEnabled", "NO"]
         app.launchEnvironment = ["ECHO_FAKE_UNLOCK": "1"]
         app.launch()
         // Buttons under a cover can still be found and tapped by tests, so check the cover itself.
@@ -55,5 +55,24 @@ final class LaunchTests: XCTestCase {
         sleep(2)
         app.buttons["Done"].tap()
         XCTAssertTrue(app.staticTexts["On this iPhone".uppercased()].waitForExistence(timeout: 5) || app.staticTexts["On this iPhone"].exists)
+    }
+
+    func testHandsFreeIsOffUnlessTurnedOn() {
+        let app = launch(onboarded: true, lock: false)
+        XCTAssertTrue(app.buttons["Record"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Hands-free"].exists, "Echo should look as it always has with hands-free off")
+    }
+
+    func testSettingsReachesEveryPage() {
+        let app = launch(onboarded: true, lock: false)
+        XCTAssertTrue(app.buttons["Record"].waitForExistence(timeout: 10))
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        app.staticTexts["Tips for dictating"].tap()
+        XCTAssertTrue(app.navigationBars["Tips"].waitForExistence(timeout: 5))
+        app.navigationBars["Tips"].buttons["Settings"].tap()
+        app.buttons.matching(NSPredicate(format: "label CONTAINS 'Off'")).firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Hands-free"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.switches["Use Hands-Free Mode"].exists)
     }
 }

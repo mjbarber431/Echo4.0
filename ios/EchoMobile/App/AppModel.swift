@@ -11,6 +11,9 @@ final class AppModel {
     let speech = SpeechModel()
     let link = MacLink()
     let lock = AppLock()
+    let handsFreeSettings = HandsFreeSettings()
+    let commandModel = CommandModel()
+    let handsFree: HandsFreeSession
     private let activity = RecordingActivity()
 
     /// The memo being transcribed right now.
@@ -39,11 +42,17 @@ final class AppModel {
     }
 
     init() {
+        handsFree = HandsFreeSession(settings: handsFreeSettings, recordingDir: store.recordingDir)
+        handsFree.onChange = { [weak self] in self?.handsFreeChanged() }
+        handsFree.onEnded = { [weak self] in self?.collectHandsFreeNotes() }
         link.onFound = { [weak self] in self?.sendWaiting() }
         speech.onReady = { [weak self] in self?.transcribeWaiting() }
         recorder.onChange = { [weak self] in self?.recorderChanged() }
         NotificationCenter.default.addObserver(forName: UIApplication.protectedDataDidBecomeAvailableNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.transcribeWaiting() }
+            MainActor.assumeIsolated {
+                self?.collectHandsFreeNotes()
+                self?.transcribeWaiting()
+            }
         }
     }
 
@@ -54,6 +63,7 @@ final class AppModel {
         launched = true
         // Nothing is recording yet, so any Live Activity still up is from a recording that was cut off.
         RecordingActivity.endLeftovers()
+        NoteDesk.emptyBin(recordingDir: store.recordingDir) // Nothing's recording, so nothing there can be taken back.
         store.load()
         if speech.isDownloaded { speech.prepare() }
         #if DEBUG
@@ -63,6 +73,7 @@ final class AppModel {
 
     func becameActive() {
         link.start()
+        collectHandsFreeNotes()
         transcribeWaiting()
         sendWaiting()
     }
@@ -117,11 +128,52 @@ final class AppModel {
         recordingID = nil
     }
 
+    // MARK: Hands-free
+
+    func startHandsFree() async {
+        do {
+            try await handsFree.start()
+        } catch {
+            alert = error.localizedDescription
+        }
+    }
+
+    /// Turns finished hands-free notes into memos. It has to wait for the phone to be unlocked,
+    /// because memos are sealed by iOS while it's locked. If Echo is closed first, the notes are
+    /// still in `Recording/` and `MemoStore.load` picks them up.
+    private func collectHandsFreeNotes() {
+        if let problem = handsFree.endProblem {
+            alert = problem
+            handsFree.clearEndProblem()
+        }
+        guard !handsFree.waiting.isEmpty, UIApplication.shared.isProtectedDataAvailable else { return }
+        for note in handsFree.waiting {
+            do {
+                try store.adoptRecording(Memo(id: note.id, recordedAt: note.recordedAt, duration: note.duration, phase: .recorded))
+                handsFree.collected(note)
+            } catch {
+                alert = "A note couldn’t be saved: \(error.localizedDescription)"
+            }
+        }
+        transcribeWaiting()
+    }
+
+    private func handsFreeChanged() {
+        switch handsFree.phase {
+        case .idle: activity.end()
+        case .preparing: break
+        case .recording: activity.show(.recording, elapsed: handsFree.elapsed, note: handsFree.note)
+        case .paused: activity.show(.paused, elapsed: handsFree.elapsed, note: handsFree.note)
+        }
+    }
+
     // MARK: Transcription
 
     /// Transcribes recordings one at a time, oldest first, whenever the model is ready and the phone is unlocked.
     func transcribeWaiting() {
         guard !working, let next = store.needsTranscribing.first else { return }
+        // Wait for the end of a hands-free session: the phone's busy listening, likely in a pocket.
+        guard !handsFree.isActive else { return }
         // Picked up again by onReady once the model has loaded.
         guard speech.status == .ready else { return }
         guard UIApplication.shared.isProtectedDataAvailable else { return }

@@ -8,6 +8,8 @@
     ///   ECHO_DEMO_SENT=<n>  add n receipts for recordings sent to the Mac earlier today
     ///   ECHO_OPEN_MEMO=1  open the newest recording's sheet
     ///   ECHO_START_RECORDING=1  start recording straight away, to check the Live Activity
+    ///   ECHO_START_HANDS_FREE=1  start a hands-free session straight away
+    ///   ECHO_HANDS_FREE_AUDIO=<path>  use this 16 kHz mono file as the hands-free mic
     ///   ECHO_SKIP_ONBOARDING=1
     ///   ECHO_LOCK_NO_PROMPT=1  stay locked without asking for Face ID, to check what the lock covers
     ///   ECHO_FAKE_UNLOCK=1  never prompt for Face ID; tapping Unlock just unlocks (the simulator can't do Face ID)
@@ -38,6 +40,7 @@
             }
             if env["ECHO_OPEN_MEMO"] == "1" { model.debugOpenMemo = model.store.memos.first?.id }
             if env["ECHO_START_RECORDING"] == "1" { Task { await model.startRecording() } }
+            if env["ECHO_START_HANDS_FREE"] == "1" { Task { await model.startHandsFree() } }
         }
     }
 #endif

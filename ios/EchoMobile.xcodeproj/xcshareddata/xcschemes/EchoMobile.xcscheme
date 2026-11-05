@@ -44,6 +44,17 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
+               BlueprintIdentifier = "977FEFEDF98718193F49C9E1"
+               BuildableName = "EchoMobileTests.xctest"
+               BlueprintName = "EchoMobileTests"
+               ReferencedContainer = "container:EchoMobile.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
                BlueprintIdentifier = "2F9D90C57A19079D9EB27C5A"
                BuildableName = "EchoMobileUITests.xctest"
                BlueprintName = "EchoMobileUITests"

@@ -1,4 +1,9 @@
 node_modules/
+
+# API keys; never commit.
+.env
+.env.*
+
 out/
 release/
 .DS_Store
