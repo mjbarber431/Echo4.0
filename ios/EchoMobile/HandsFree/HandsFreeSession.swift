@@ -361,7 +361,7 @@ final class HandsFreeSession {
                 self.updateHeadset()
                 // Same rule as `Recorder`: no carrying on with a different mic unnoticed.
                 guard reason == .oldDeviceUnavailable else { return }
-                self.pauseForProblem("Paused because the microphone changed. Say “Echo, resume” to carry on.", cue: .micChanged)
+                self.pauseForProblem("Paused because the microphone changed. Say “Okay, resume” to carry on.", cue: .micChanged)
             }
         })
         // Changing the mic or the sample rate stops the engine; it needs rebuilding for the new format.

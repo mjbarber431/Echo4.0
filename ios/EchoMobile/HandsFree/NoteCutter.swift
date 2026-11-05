@@ -53,7 +53,7 @@ struct NoteCutter: Sendable {
     }
 
     /// Where speech most likely starts, looking back from `position`. Token times are late by
-    /// 0 to 0.6 s, so cutting right at one would leave half of "Echo" in the note.
+    /// 0 to 0.6 s, so cutting right at one would leave half of "Okay" in the note.
     /// This finds the quiet just before the word: the latest 20 ms slice, in the last
     /// `withinMs`, that's close to the quietest there.
     func quietPoint(before position: Int, withinMs: Int = 800) -> Int {

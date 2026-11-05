@@ -174,14 +174,14 @@ struct HandsFreeSettingsView: View {
 
     /// What can be said, shown in the order they're likely to be needed.
     private static let commands: [(phrase: String, effect: String)] = [
-        ("Echo, new note", "Saves this note and starts the next"),
-        ("Echo, pause", "Stops recording but keeps listening"),
-        ("Echo, resume", "Carries on with the same note"),
-        ("Echo, discard note", "Throws away this note and starts it over"),
-        ("Echo, undo", "Takes back a discard, or the last new note for about a minute"),
-        ("Echo, status", "Tells you which note you’re on"),
-        ("Echo, help", "Reads out the commands"),
-        ("Echo, finish", "Saves everything and stops"),
+        ("Okay, new note", "Saves this note and starts the next"),
+        ("Okay, pause", "Stops recording but keeps listening"),
+        ("Okay, resume", "Carries on with the same note"),
+        ("Okay, discard note", "Throws away this note and starts it over"),
+        ("Okay, undo", "Takes back a discard, or the last new note for about a minute"),
+        ("Okay, status", "Tells you which note you’re on"),
+        ("Okay, help", "Reads out the commands"),
+        ("Okay, finish", "Saves everything and stops"),
     ]
 
     var body: some View {
@@ -236,7 +236,7 @@ struct HandsFreeSettingsView: View {
                 } header: {
                     Text("What you can say")
                 } footer: {
-                    Text("Pause for a moment after a command. No confirmation means Echo didn’t hear it, so say it again.")
+                    Text("Pause for a moment before and after a command. No confirmation means Echo didn’t hear it, so say it again.")
                 }
             }
         }

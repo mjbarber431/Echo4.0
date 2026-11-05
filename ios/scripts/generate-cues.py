@@ -29,7 +29,7 @@ MODEL = "eleven_multilingual_v2"
 WORDS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve",
          "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"]
 
-# Short and free of the word "Echo" where possible: on a speaker the mic hears these.
+# Short and free of the word "Okay" where possible: on a speaker the mic hears these.
 PHRASES = {
     "ready": "Hands-free is on. Note one.",
     "new-note": "New note.",
@@ -44,7 +44,7 @@ PHRASES = {
     "mic-changed": "The microphone changed. Paused.",
     "commands-stopped": "Voice commands stopped. Still recording.",
     "problem": "Recording stopped. Open Echo.",
-    "help": "Say Echo, then new note, pause, resume, discard, undo, status, or finish.",
+    "help": "Say okay, then new note, pause, resume, discard, undo, status, or finish.",
 }
 PHRASES.update({f"note-{i + 1}": f"Note {w}." for i, w in enumerate(WORDS)})
 

@@ -28,7 +28,7 @@ struct HandsFreeView: View {
             Button("Discard Note", role: .destructive) { session.tap(.discard) }
             Button("Keep Note", role: .cancel) {}
         } message: {
-            Text("You can say “Echo, undo” to bring it back until you finish.")
+            Text("You can say “Okay, undo” to bring it back until you finish.")
         }
     }
 
@@ -103,9 +103,9 @@ struct HandsFreeView: View {
 
     private var hints: some View {
         VStack(spacing: 3) {
-            Text(paused ? "Say “Echo, resume” to carry on" : "Say “Echo, new note” for the next one")
+            Text(paused ? "Say “Okay, resume” to carry on" : "Say “Okay, new note” for the next one")
                 .font(.subheadline.weight(.semibold))
-            Text("“Echo, help” lists the rest")
+            Text("“Okay, help” lists the rest")
                 .font(.footnote)
                 .foregroundStyle(.white.opacity(0.7))
         }

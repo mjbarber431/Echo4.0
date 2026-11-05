@@ -223,7 +223,7 @@ private struct RecordBar: View {
     private var hint: String {
         guard model.handsFreeSettings.enabled, model.handsFreeSettings.armed else { return "Start with the client’s name" }
         switch model.commandModel.status {
-        case .ready: return "Say “Echo, new note” between clients"
+        case .ready: return "Say “Okay, new note” between clients"
         case .downloading: return "Downloading voice commands…"
         case .notDownloaded, .failed: return "Finish setting up in Settings › Hands-free"
         }

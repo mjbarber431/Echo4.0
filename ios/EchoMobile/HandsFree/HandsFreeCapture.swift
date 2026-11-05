@@ -136,7 +136,7 @@ final class HandsFreeCapture: @unchecked Sendable {
                 guard let file = try? AVAudioFile(forReading: URL(fileURLWithPath: path)),
                     let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: 1600)
                 else { return }
-                // Keep going a little past the end: "Echo, finish" needs its silence too.
+                // Keep going a little past the end: "Okay, finish" needs its silence too.
                 var left = 30
                 while left > 0 {
                     buffer.frameLength = 0

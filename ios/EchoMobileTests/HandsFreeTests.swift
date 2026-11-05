@@ -24,8 +24,8 @@ final class CommandSpotterTests: XCTestCase {
 
     func testEveryCommand() {
         let cases: [(String, HandsFreeCommand)] = [
-            ("new note", .newNote), ("next note", .newNote), ("pause", .pause), ("resume", .resume), ("continue", .resume),
-            ("discard note", .discard), ("scratch that", .discard), ("undo", .undo), ("finish", .finish),
+            ("new note", .newNote), ("next note", .newNote), ("pause", .pause), ("resume", .resume),
+            ("discard note", .discard), ("delete note", .discard), ("undo", .undo), ("finish", .finish),
             ("stopped recording", .finish), ("status", .status), ("help", .help), ("where am i", .status),
         ]
         for (phrase, command) in cases {
@@ -34,45 +34,57 @@ final class CommandSpotterTests: XCTestCase {
                 at += 250
                 return (String(word), at)
             }
-            XCTAssertEqual(spot([("echo", 1000)] + words).map(\.command), [command], phrase)
+            XCTAssertEqual(spot([("okay", 1000)] + words).map(\.command), [command], phrase)
+        }
+    }
+
+    func testTheOtherWaysOfWritingOkay() {
+        for wake in ["ok", "okey"] {
+            XCTAssertEqual(spot([(wake, 1000), ("pause", 1300)]).map(\.command), [.pause], wake)
         }
     }
 
     func testWordsArriveInPieces() {
         var spotter = CommandSpotter()
-        let tokens = ["▁e", "ch", "o", "▁new", "▁not", "e"]
-        let times = [1000, 1000, 1200, 1700, 1800, 1900]
+        let tokens = ["▁ok", "ay", "▁new", "▁not", "e"]
+        let times = [1000, 1200, 1700, 1800, 1900]
         XCTAssertNil(spotter.feed(tokens: tokens[...], timesMs: times[...], heardMs: 2400))
         XCTAssertEqual(spotter.feed(tokens: [], timesMs: [], heardMs: 3000)?.command, .newNote)
     }
 
-    func testEchoIsKeptWhileItsCommandIsOnItsWay() {
-        // The bug this guards: "Echo" alone for a second shouldn't be forgotten.
-        XCTAssertEqual(spot([("echo", 1000), ("pause", 2200)]).map(\.command), [.pause])
+    func testOkayIsKeptWhileItsCommandIsOnItsWay() {
+        // The bug this guards: "Okay" alone for a second shouldn't be forgotten.
+        XCTAssertEqual(spot([("okay", 1000), ("pause", 2200)]).map(\.command), [.pause])
     }
 
     func testCarryingStraightOnAfterAPauseStillCounts() {
-        let hit = spot([("echo", 1000), ("new", 1400), ("note", 1600), ("the", 2000), ("next", 2200)]).first
+        let hit = spot([("okay", 1000), ("new", 1400), ("note", 1600), ("the", 2000), ("next", 2200)]).first
         XCTAssertEqual(hit?.command, .newNote)
         XCTAssertEqual(hit?.nextWordMs, 2000)
     }
 
     func testOrdinarySpeechDoesNothing() {
         let sentences: [[(String, Int)]] = [
-            [("still", 800), ("echo", 1000), ("in", 1200), ("her", 1400), ("head", 1600)],
-            [("an", 900), ("echo", 1000), ("stopped", 1300)], // A noun, not a command.
-            [("the", 900), ("echo", 1000), ("paused", 1300)],
-            [("echo", 1000), ("pause", 1250), ("there", 1450), ("for", 1650)], // Runs on.
-            [("echo", 1000), ("new", 1200), ("note", 1400), ("of", 1600), ("hope", 1800)],
-            [("echo", 1000), ("pause", 1250), ("there", 1600), ("for", 1800)], // Runs on, a little slower.
-            [("we", 800), ("will", 1000), ("pause", 1200)], // No "Echo".
-            [("echo", 1000), ("pause", 4000)], // Too long after "Echo".
+            [("she", 600), ("felt", 800), ("okay", 1000), ("in", 1200), ("her", 1400), ("head", 1600)],
+            [("that", 700), ("was", 900), ("okay", 1100), ("pause", 1500)], // No pause before "Okay".
+            [("she", 500), ("said", 750), ("okay", 1050), ("finish", 1400)], // Still too close at 300 ms.
+            [("okay", 1000), ("pause", 1250), ("there", 1450), ("for", 1650)], // Runs on.
+            [("okay", 1000), ("new", 1200), ("note", 1400), ("of", 1600), ("hope", 1800)],
+            [("okay", 1000), ("pause", 1250), ("there", 1600), ("for", 1800)], // Runs on, a little slower.
+            [("we", 800), ("will", 1000), ("pause", 1200)], // No "Okay".
+            [("okay", 1000), ("pause", 4000)], // Too long after "Okay".
+            // What people say on their way to the next sentence.
+            [("okay", 1000), ("next", 1300)],
+            [("okay", 1000), ("scratch", 1300), ("that", 1500)],
+            [("okay", 1000), ("done", 1300)],
+            [("okay", 1000), ("stop", 1300)],
+            [("okay", 1000), ("continue", 1300)],
         ]
         for words in sentences { XCTAssertEqual(spot(words), [], "\(words)") }
     }
 
     func testTwoCommandsInARow() {
-        let found = spot([("echo", 1000), ("pause", 1300), ("echo", 4000), ("resume", 4300)])
+        let found = spot([("okay", 1000), ("pause", 1300), ("okay", 4000), ("resume", 4300)])
         XCTAssertEqual(found.map(\.command), [.pause, .resume])
     }
 }

@@ -1,25 +1,24 @@
 import Foundation
 
-/// What can be said in hands-free mode. Every command starts with "Echo".
+/// What can be said in hands-free mode. Every command starts with "Okay".
 enum HandsFreeCommand: String, CaseIterable, Sendable {
     case newNote, pause, resume, discard, undo, finish, status, help
 
-    /// How each one can be said, after "Echo", as the speech model writes it: lowercase, no
+    /// How each one can be said, after "Okay", as the speech model writes it: lowercase, no
     /// punctuation. Includes the ways the model was heard to mishear them ("stopped recording").
+    /// Nothing a person says on the way to their next sentence belongs here: "okay, next",
+    /// "okay, scratch that" and "okay, done" are dictation, not commands.
     fileprivate var phrases: [String] {
         switch self {
-        case .newNote: ["new note", "new notes", "next note", "next notes", "next", "start new note", "start a new note"]
+        case .newNote: ["new note", "new notes", "next note", "next notes", "start new note", "start a new note"]
         case .pause: ["pause", "paused", "pauses", "paws", "pause recording", "pause that"]
-        case .resume: ["resume", "resumed", "resume recording", "continue", "keep going", "unpause"]
+        case .resume: ["resume", "resumed", "resume recording", "unpause"]
         case .discard: [
                 "discard", "discarded", "discard note", "discard notes", "discard that", "discard this", "discard this note",
-                "discard the note", "delete note", "delete that", "delete this note", "scratch that", "scratch this", "scrap that", "scrap this",
+                "discard the note", "delete note", "delete this note",
             ]
-        case .undo: ["undo", "undo that", "undid", "take that back"]
-        case .finish: [
-                "finish", "finished", "finish up", "stop", "stopped", "stop recording", "stopped recording", "done", "im done", "all done",
-                "end session",
-            ]
+        case .undo: ["undo", "undo that", "undid"]
+        case .finish: ["finish", "finished", "finish up", "stop recording", "stopped recording", "end session"]
         case .status: ["status", "where am i", "what note", "which note", "what note am i on"]
         case .help: ["help", "health", "commands"]
         }
@@ -29,7 +28,7 @@ enum HandsFreeCommand: String, CaseIterable, Sendable {
 /// A command heard in the speech stream. Times are milliseconds from the start of the session.
 struct SpottedCommand: Equatable, Sendable {
     let command: HandsFreeCommand
-    /// When the speech model placed "Echo". The real start is a little earlier: see `NoteCutter.quietPoint`.
+    /// When the speech model placed "Okay". The real start is a little earlier: see `NoteCutter.quietPoint`.
     let startMs: Int
     /// When the speech model placed the last word.
     let endMs: Int
@@ -39,13 +38,13 @@ struct SpottedCommand: Equatable, Sendable {
     let heardMs: Int
 }
 
-/// Finds "Echo, <command>" in the words the streaming speech model produces. It has only
+/// Finds "Okay, <command>" in the words the streaming speech model produces. It has only
 /// the last few words, and they're dropped after use: nothing here keeps what was dictated.
 ///
-/// Discarding a note on a false alarm would be bad, so this is deliberately strict:
-/// "Echo" must come straight before a known phrase, a pause must follow it (running on means
-/// it's a sentence: "echo pause there for a while"), and the word before can't make
-/// "echo" a noun ("the echo stopped").
+/// People say "okay" constantly, and discarding a note on a false alarm would be bad, so this
+/// is deliberately strict: a pause must come before "Okay" (mid-sentence it's just a word:
+/// "she said okay pause"), it must come straight before a known phrase, and a pause must follow
+/// that (running on means it's a sentence: "okay pause there for a while").
 struct CommandSpotter: Sendable {
     /// Silence needed after the last word when nothing follows it. Tokens arrive about 0.65 s
     /// after their audio, so this has to outlast that delay plus `pauseAfterMs`, or a sentence
@@ -54,7 +53,10 @@ struct CommandSpotter: Sendable {
     /// The gap before the next word that counts as a pause. Measured on the speech model's
     /// timestamps: words in a sentence are about 240 ms apart, and at least 480 ms follows a command.
     static let pauseAfterMs = 400
-    /// The most that can pass between "Echo" and the command.
+    /// The gap after the previous word that counts as a pause. Words in a sentence can sit
+    /// 320 ms apart on the speech model's timestamps, so this has to be longer than that.
+    static let pauseBeforeMs = 400
+    /// The most that can pass between "Okay" and the command.
     static let maxGapMs = 1500
 
     private struct Word: Sendable {
@@ -63,10 +65,8 @@ struct CommandSpotter: Sendable {
         var endMs: Int
     }
 
-    private static let wakeWords: Set<String> = ["echo", "ecco", "eco", "ecko", "ekko"]
+    private static let wakeWords: Set<String> = ["okay", "ok", "okey"]
     private static let fillers: Set<String> = ["um", "uh", "ah", "er", "please"]
-    /// "the echo stopped", "an echo paused", "her echo finished".
-    private static let nounMarkers: Set<String> = ["a", "an", "the", "this", "that", "my", "your", "his", "her", "their", "our"]
     private static let lookup: [String: HandsFreeCommand] = {
         var map: [String: HandsFreeCommand] = [:]
         for command in HandsFreeCommand.allCases {
@@ -97,7 +97,7 @@ struct CommandSpotter: Sendable {
 
     private mutating func match(heardMs: Int) -> SpottedCommand? {
         for (i, wake) in words.enumerated() where Self.wakeWords.contains(wake.text) {
-            if i > 0, Self.nounMarkers.contains(words[i - 1].text), wake.startMs - words[i - 1].endMs < 500 { continue }
+            if i > 0, wake.startMs - words[i - 1].endMs < Self.pauseBeforeMs { continue }
             // Longest first: "stop recording" rather than "stop".
             var last = min(words.count - 1, i + Self.longestPhrase + 2)
             while last > i {
@@ -118,7 +118,7 @@ struct CommandSpotter: Sendable {
                 return SpottedCommand(command: command, startMs: wake.startMs, endMs: end, nextWordMs: nil, heardMs: heardMs)
             }
         }
-        // Long enough that a trailing "Echo" can't still be waiting for its command, whose tokens arrive late.
+        // Long enough that a trailing "Okay" can't still be waiting for its command, whose tokens arrive late.
         if let last = words.last, heardMs - last.endMs >= Self.maxGapMs + Self.quietAfterMs { words.removeAll() }
         return nil
     }

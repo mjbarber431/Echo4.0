@@ -119,18 +119,18 @@ Face ID (or the passcode) protects the iPhone app by default, and the app is hid
 
 An optional way to dictate several notes in a row without touching the phone: on a walk with headphones in, or with the phone on the counter. It's off by default. Turn it on in the iPhone app's *Settings › Hands-free* and a Hands-free switch appears under Record. With the switch on, Record starts a hands-free session; with it off, Record and everything behind it work as they always have.
 
-Tap Record, lock the phone, and talk. Every command starts with "Echo", and a chime or a voice (your choice in Settings) confirms it in your ear. No confirmation means Echo didn't hear it, so say it again.
+Tap Record, lock the phone, and talk. Every command starts with "Okay", with a short pause before and after it, and a chime or a voice (your choice in Settings) confirms it in your ear. No confirmation means Echo didn't hear it, so say it again.
 
 | Say | What happens |
 | --- | --- |
-| "Echo, new note" | Saves this note and starts the next |
-| "Echo, pause" | Stops recording but keeps listening |
-| "Echo, resume" | Carries on with the same note |
-| "Echo, discard note" | Throws away this note and starts it over |
-| "Echo, undo" | Takes back a discard, or the last new note for about a minute |
-| "Echo, status" | Tells you which note you're on |
-| "Echo, help" | Reads out the commands |
-| "Echo, finish" | Saves everything and stops |
+| "Okay, new note" | Saves this note and starts the next |
+| "Okay, pause" | Stops recording but keeps listening |
+| "Okay, resume" | Carries on with the same note |
+| "Okay, discard note" | Throws away this note and starts it over |
+| "Okay, undo" | Takes back a discard, or the last new note for about a minute |
+| "Okay, status" | Tells you which note you're on |
+| "Okay, help" | Reads out the commands |
+| "Okay, finish" | Saves everything and stops |
 
 **How it works.** A small streaming speech model (Parakeet EOU, 220 MB, downloaded when hands-free is turned on) listens on the phone. It keeps only the last few words in memory and nothing it decodes is logged or saved; Parakeet still writes the real transcript afterwards, the same as any recording. Audio waits about 6 seconds in memory before it's written, so a command can be cut out before it reaches a file (`NoteCutter`). The command's words never land in a note, unless the listener missed them. On a speaker the mic can hear the phone's own confirmation, and that stays in the note rather than risk cutting words said over it; headphones avoid this. Each note is its own file in `Recording/`, so a crash leaves them to be recovered as usual, at the cost of the last few seconds. Notes become memos when the phone is next unlocked, because memos use file protection that can't be written while it's locked. A discarded note is held until the session ends in case of "undo", then deleted.
 
