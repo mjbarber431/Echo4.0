@@ -159,6 +159,8 @@ export interface Settings {
   chatModel: string
   /** Local speech model (TRANSCRIBE_MODELS). */
   transcribeModel: string
+  /** The clinician's own terms for the transcriber to listen for, one per line (shared/vocabulary.ts). */
+  customVocabulary?: string
   reasoningEffort: ReasoningEffort
   /** Transcribe dictation live, straight into the text, and show what the note still needs while you talk. */
   liveCoverage: boolean
@@ -200,6 +202,8 @@ export interface TranscriberStatus {
   /** Download progress, 0–1. */
   progress: number
   message: string
+  /** The vocabulary checker that corrects clinical terms after transcription. */
+  vocabulary: { state: 'off' | 'loading' | 'downloading' | 'ready' | 'error'; count: number; message: string }
 }
 
 /** Speech models the local transcriber can run. English v2 is the default: it handled clinical terms best in testing. */

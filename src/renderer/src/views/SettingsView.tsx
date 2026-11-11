@@ -17,6 +17,7 @@ export function SettingsView() {
   const [backup, setBackup] = useState<'export' | 'import' | null>(null)
   const [legacyImport, setLegacyImport] = useState(false)
   const [instructions, setInstructions] = useState(settings.customInstructions)
+  const [vocabulary, setVocabulary] = useState(settings.customVocabulary ?? '')
   const [speech, setSpeech] = useState<TranscriberStatus | null>(null)
   const listed = WRITING_MODELS.some((m) => m.id === settings.textModel)
   const [customModel, setCustomModel] = useState(!listed)
@@ -198,6 +199,19 @@ export function SettingsView() {
             </select>
           </Field>
           {speech && <p className={speech.state === 'error' ? 'error small' : 'fine-print'}>{speechStatus(speech)}</p>}
+          <Field
+            label="Your own terms (optional)"
+            hint="Echo already listens for common diagnoses, therapy terms and psychiatric medications, and corrects near-misses after each recording. Add any others here, one per line. If one keeps coming out wrong, add how it comes out after “=”, e.g. “Jardiance = jar dance”. Used on your paired iPhone too, from its next sync."
+          >
+            <AutoTextarea
+              value={vocabulary}
+              minRows={3}
+              placeholder={'Jardiance\nKlonopin = clonopin'}
+              onChange={(e) => setVocabulary(e.target.value)}
+              onBlur={() => vocabulary !== (settings.customVocabulary ?? '') && set({ customVocabulary: vocabulary })}
+            />
+          </Field>
+          {speech && vocabularyStatus(speech) && <p className={speech.vocabulary.state === 'error' ? 'error small' : 'fine-print'}>{vocabularyStatus(speech)}</p>}
         </section>
 
         <section className="settings-group">
@@ -258,6 +272,15 @@ export function SettingsView() {
       {legacyImport && <LegacyImportModal onClose={() => setLegacyImport(false)} />}
     </div>
   )
+}
+
+function vocabularyStatus(s: TranscriberStatus): string {
+  const v = s.vocabulary
+  if (v.state === 'ready') return `Checking for ${v.count} terms.`
+  if (v.state === 'downloading') return 'Getting the term checker ready (the first time, this downloads about 100 MB)…'
+  if (v.state === 'loading') return 'Loading the term checker…'
+  if (v.state === 'error') return `The term checker couldn’t load, so transcripts aren’t being checked: ${v.message}`
+  return ''
 }
 
 function speechStatus(s: TranscriberStatus): string {

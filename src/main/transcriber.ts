@@ -3,6 +3,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 import type { TranscriberStatus } from '../shared/types'
+import type { VocabularyEntry } from '../shared/vocabulary'
 
 // Speech-to-text on this Mac. The EchoTranscriber helper (native/transcriber)
 // runs Parakeet on the Neural Engine; audio never leaves the computer. It's one
@@ -19,6 +20,8 @@ interface Reply {
   fraction?: number
   /** FluidAudio's phase: listing, downloading(…) or compiling(…). */
   phase?: string
+  /** Terms the vocabulary checker loaded. */
+  count?: number
 }
 
 interface Pending {
@@ -41,7 +44,10 @@ let nextId = 1
 const pending = new Map<number, Pending>()
 /** The model the running helper has loaded (or is loading), and the promise for it. */
 let preparing: { model: string; done: Promise<void> } | null = null
-let status: TranscriberStatus = { state: 'idle', model: '', progress: 0, message: '' }
+let status: TranscriberStatus = { state: 'idle', model: '', progress: 0, message: '', vocabulary: { state: 'off', count: 0, message: '' } }
+/** The terms the checker should use, and the helper that has them (a restarted helper needs them again). */
+let vocabulary: VocabularyEntry[] = []
+let vocabularyFor: ChildProcessWithoutNullStreams | null = null
 let listener: Listener = () => {}
 
 function setStatus(next: Partial<TranscriberStatus>): void {
@@ -112,7 +118,10 @@ export function prepareTranscriber(model: string): Promise<void> {
     // Only a download is worth a percentage; listing and compiling are brief.
     setStatus(reply.phase?.startsWith('downloading') ? { state: 'downloading', progress: reply.fraction ?? 0 } : { state: 'loading' })
   )
-    .then(() => setStatus({ state: 'ready', progress: 1, message: '' }))
+    .then(() => {
+      setStatus({ state: 'ready', progress: 1, message: '' })
+      loadVocabulary()
+    })
     .catch((err: Error) => {
       if (preparing?.done === done) preparing = null
       setStatus({ state: 'error', message: err.message })
@@ -120,6 +129,37 @@ export function prepareTranscriber(model: string): Promise<void> {
     })
   preparing = { model, done }
   return done
+}
+
+/**
+ * The terms to check transcripts against (vocabulary/VocabularyChecker.swift). Loads them now if
+ * the model is ready, or once it is. Until the checker is ready, transcripts come back unchecked:
+ * it must never hold up a dictation, even the first time, when its model downloads (about 100 MB).
+ */
+export function setVocabulary(terms: VocabularyEntry[]): void {
+  vocabulary = terms
+  vocabularyFor = null
+  if (status.state === 'ready' && child) loadVocabulary()
+}
+
+function loadVocabulary(): void {
+  const proc = child
+  if (!proc || vocabularyFor === proc) return
+  vocabularyFor = proc
+  const terms = vocabulary
+  if (!terms.length) return setStatus({ vocabulary: { state: 'off', count: 0, message: '' } })
+  setStatus({ vocabulary: { state: 'loading', count: 0, message: '' } })
+  request({ op: 'vocabulary', dir: join(app.getPath('userData'), 'models'), terms }, () =>
+    setStatus({ vocabulary: { state: 'downloading', count: 0, message: '' } })
+  )
+    .then((reply) => {
+      if (terms === vocabulary) setStatus({ vocabulary: { state: 'ready', count: reply.count ?? terms.length, message: '' } })
+    })
+    .catch((err: Error) => {
+      if (terms !== vocabulary) return
+      if (vocabularyFor === proc) vocabularyFor = null // Try again with the next transcription.
+      setStatus({ vocabulary: { state: 'error', count: 0, message: err.message } })
+    })
 }
 
 export function transcriberReady(model: string): boolean {
@@ -130,6 +170,7 @@ export function transcriberReady(model: string): boolean {
 export async function transcribe(model: string, pcm: ArrayBuffer, retried = false): Promise<string> {
   try {
     await prepareTranscriber(model)
+    loadVocabulary()
     const reply = await request({ op: 'transcribe', pcm: Buffer.from(pcm).toString('base64') })
     return reply.text ?? ''
   } catch (err) {

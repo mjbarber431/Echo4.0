@@ -9,8 +9,12 @@ import Foundation
 //   {"id":1,"op":"prepare","dir":"<models folder>","model":"parakeet-tdt-0.6b-v2"}
 //       → zero or more {"id":1,"type":"progress","fraction":0.4,"phase":"downloading"}
 //       → {"id":1,"type":"result","ok":true}
-//   {"id":2,"op":"transcribe","pcm":"<base64 16 kHz mono 16-bit little-endian PCM>"}
-//       → {"id":2,"type":"result","ok":true,"text":"…"}
+//   {"id":2,"op":"vocabulary","dir":"<models folder>","terms":[{"text":"sertraline","aliases":[…]}]}
+//       → progress as for prepare, then {"id":2,"type":"result","ok":true,"count":n}
+//       Loads the vocabulary checker (VocabularyChecker.swift) for these terms, downloading its model
+//       the first time. It runs alongside transcription, which uses the checker once it's ready.
+//   {"id":3,"op":"transcribe","pcm":"<base64 16 kHz mono 16-bit little-endian PCM>"}
+//       → {"id":3,"type":"result","ok":true,"text":"…"}
 // A failure is {"id":n,"type":"result","ok":false,"error":"…"}.
 //
 // Nothing here logs audio or text. FluidAudio's debug lines include transcript
@@ -77,9 +81,33 @@ actor Transcriber {
         if audio.count < 4000 { return "" }
         // A fresh decoder state per request: every recording and live turn stands alone.
         var state = TdtDecoderState.make(decoderLayers: decoderLayers)
-        return try await manager.transcribe(audio, decoderState: &state).text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let result = try await manager.transcribe(audio, decoderState: &state)
+        let text = await checking.checker?.check(result, audio: audio) ?? result.text
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
+
+/// The vocabulary checker, kept apart from the transcriber so loading it never holds up a transcription.
+actor Checking {
+    private(set) var checker: VocabularyChecker?
+    private var models: CtcModels?
+
+    func load(id: Int, dir: String, terms: [VocabularyEntry]) async throws -> Int {
+        let modelsDir = URL(fileURLWithPath: dir)
+        if models == nil {
+            if !VocabularyChecker.modelsExist(in: modelsDir) {
+                reply(["id": id, "type": "progress", "fraction": 0, "phase": "downloading"])
+            }
+            models = try await VocabularyChecker.loadModels(in: modelsDir)
+        }
+        guard let models else { throw HelperError("The vocabulary model didn't load.") }
+        let next = try await VocabularyChecker(models: models, modelsDir: modelsDir, entries: terms)
+        checker = next
+        return next.entries.count
+    }
+}
+
+let checking = Checking()
 
 struct HelperError: LocalizedError {
     let message: String
@@ -104,6 +132,20 @@ while let line = readLine(strippingNewline: true) {
             }
             try await transcriber.prepare(id: id, dir: dir, model: model)
             reply(["id": id, "type": "result", "ok": true])
+        case "vocabulary":
+            guard let dir = request["dir"] as? String, let raw = request["terms"] as? [[String: Any]] else {
+                throw HelperError("vocabulary needs dir and terms.")
+            }
+            let terms = raw.compactMap { t in (t["text"] as? String).map { VocabularyEntry(text: $0, aliases: t["aliases"] as? [String]) } }
+            // Detached: this loop holds the main thread while it waits on stdin, so a task tied to it would never run.
+            Task.detached {
+                do {
+                    let count = try await checking.load(id: id, dir: dir, terms: terms)
+                    reply(["id": id, "type": "result", "ok": true, "count": count])
+                } catch {
+                    fail(id, error.localizedDescription)
+                }
+            }
         case "transcribe":
             guard let pcm = request["pcm"] as? String, let audio = samples(fromBase64: pcm) else {
                 throw HelperError("transcribe needs base64 16-bit PCM.")

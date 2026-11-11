@@ -21,7 +21,8 @@ import * as ai from './ai'
 import { openEhrs, showEhr } from './ehr'
 import * as local from './local'
 import { commitLive, sendLiveAudio, startLive, stopLive } from './live'
-import { onTranscriberStatus, prepareTranscriber, stopTranscriber, transcribe, transcriberStatus } from './transcriber'
+import { onTranscriberStatus, prepareTranscriber, setVocabulary, stopTranscriber, transcribe, transcriberStatus } from './transcriber'
+import { parseCustomVocabulary, vocabularyTerms } from '../shared/vocabulary'
 
 // Claude requests must go only to the HIPAA-configured organization whose key is
 // saved in Settings. Drop any Anthropic settings inherited from the shell (a
@@ -319,7 +320,9 @@ function registerIpc(): void {
 
   ipcMain.handle('settings:save', (_e, patch: Partial<Settings>) => {
     const model = vault.data.settings.transcribeModel
+    const terms = vault.data.settings.customVocabulary
     vault.data.settings = { ...vault.data.settings, ...patch }
+    if (vault.data.settings.customVocabulary !== terms) setVocabulary(vocabularyTerms(vault.data.settings.customVocabulary))
     vault.save()
     if (!vault.data.settings.localModel) local.stopLocal()
     else if (patch.localModel) local.ensureModel().catch(() => {})
@@ -1280,6 +1283,7 @@ app.whenReady().then(() => {
   link = new LinkServer({
     pairing: () => vault.data.link,
     receive: receiveMemos,
+    vocabulary: () => parseCustomVocabulary(vault.data.settings.customVocabulary ?? ''),
     error: (message) => {
       linkError = message
       win?.webContents.send('link', linkStatus())
@@ -1298,6 +1302,7 @@ app.whenReady().then(() => {
 
   // Load the speech model now (downloading it the first time) so the first dictation doesn't wait.
   onTranscriberStatus((status) => win?.webContents.send('transcriber', status))
+  setVocabulary(vocabularyTerms(vault.data.settings.customVocabulary))
   if (!MOCK) prepareTranscriber(vault.data.settings.transcribeModel).catch(() => {})
 
   // Check GitHub Releases for a newer version; it downloads in the background and installs on quit.

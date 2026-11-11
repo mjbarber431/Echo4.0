@@ -3,6 +3,7 @@ import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:
 import { createServer, type Server, type Socket } from 'node:net'
 import { hostname } from 'node:os'
 import type { MobileMemo } from '../shared/types'
+import type { VocabularyEntry } from '../shared/vocabulary'
 
 // The iPhone link. The phone records and transcribes on-device, then hands the
 // text to this Mac over the local network. Nothing goes through a cloud service.
@@ -21,7 +22,9 @@ import type { MobileMemo } from '../shared/types'
 // "echo-memo/1 request <id>" or "echo-memo/1 reply <id>", so a reply can't be
 // passed off as a request or the other way round.
 //   request: {"device":"Jo’s iPhone","memos":[{"id","recordedAt","durationSec","transcript"}]}
-//   reply:   {"received":["<memo id>", …],"mac":"<Mac name>"}
+//   reply:   {"received":["<memo id>", …],"mac":"<Mac name>","vocabulary":[{"text","aliases"?}, …]}
+// "vocabulary" is the clinician's own terms from Settings (the phone has the built-in
+// list already), so the phone's transcriber listens for them too.
 // The phone deletes a transcript only once its id comes back in a sealed reply,
 // which is sent after the memo is written to disk. A request that doesn't open
 // with the key gets an empty frame, which tells the phone to pair again.
@@ -122,6 +125,8 @@ export interface LinkHandlers {
   pairing(): LinkPairing | null
   /** Store the memos durably and return the ids that are now safe for the phone to delete. */
   receive(request: LinkRequest): string[]
+  /** The clinician's own vocabulary terms, for the phone's transcriber. */
+  vocabulary(): VocabularyEntry[]
   error(message: string): void
 }
 
@@ -150,7 +155,7 @@ function serve(socket: Socket, handlers: LinkHandlers): void {
       handlers.error((err as Error).message)
       return socket.destroy()
     }
-    const reply = Buffer.from(JSON.stringify({ received, mac: macName() }), 'utf8')
+    const reply = Buffer.from(JSON.stringify({ received, mac: macName(), vocabulary: handlers.vocabulary() }), 'utf8')
     socket.end(frame(seal(key, reply, aad('reply', pairing.id))))
   })
 }

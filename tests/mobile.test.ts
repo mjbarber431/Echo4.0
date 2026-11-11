@@ -165,7 +165,7 @@ describe('the iPhone link', () => {
 
   it('acknowledges memos in a sealed reply once they are received', async () => {
     const got: LinkRequest[] = []
-    server = new LinkServer({ pairing: () => pairing, receive: (r) => (got.push(r), r.memos.map((m) => m.id)), error: () => {} })
+    server = new LinkServer({ pairing: () => pairing, receive: (r) => (got.push(r), r.memos.map((m) => m.id)), vocabulary: () => [{ text: 'Klonopin' }], error: () => {} })
     server.sync()
     const port = await listening(server)
     const request = { device: 'Jo’s iPhone', memos: [{ id: 'memo-12345678', recordedAt: '2026-10-16T10:00:00Z', durationSec: 60, transcript: 'This is for Jon.' }] }
@@ -173,11 +173,12 @@ describe('the iPhone link', () => {
     expect(reply.readUInt32BE(0)).toBe(reply.length - 4)
     const body = JSON.parse(open(key, reply.subarray(4), ad('reply'))!.toString())
     expect(body.received).toEqual(['memo-12345678'])
+    expect(body.vocabulary).toEqual([{ text: 'Klonopin' }])
     expect(got[0].memos[0].transcript).toBe('This is for Jon.')
   })
 
   it('answers a phone with the wrong key with an empty frame', async () => {
-    server = new LinkServer({ pairing: () => pairing, receive: () => [], error: () => {} })
+    server = new LinkServer({ pairing: () => pairing, receive: () => [], vocabulary: () => [], error: () => {} })
     server.sync()
     const port = await listening(server)
     const reply = await exchange(port, seal(Buffer.alloc(32, 7), Buffer.from('{}'), ad('request')))
