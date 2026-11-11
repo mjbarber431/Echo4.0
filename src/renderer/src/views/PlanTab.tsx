@@ -3,7 +3,7 @@ import { AlertTriangle, CalendarCheck, Check, CircleAlert, FileDown, FolderInput
 import type { Client, Goal, GoalStatus, TreatmentPlan } from '@shared/types'
 import { GOAL_STATUS_LABEL } from '@shared/types'
 import { formatDateUS, nextReviewDate, planReviewDue, todayISO } from '@shared/compliance'
-import { planToText, textToHtml } from '@shared/format'
+import { goalToText, planToText, textToHtml } from '@shared/format'
 import { emptyPlan, newGoal } from '@shared/finalize'
 import { api, errorMessage, nowISO, uid } from '../lib/util'
 import { useStore } from '../store'
@@ -193,14 +193,23 @@ export function PlanTab({ client }: { client: Client }) {
 function PlanMetaField({ label, value, onSave }: { label: string; value: string; onSave(v: string): void }) {
   const [text, setText] = useState(value)
   return (
-    <label className="meta-field">
-      <span>{label}</span>
-      <AutoTextarea value={text} minRows={1} onChange={(e) => setText(e.target.value)} onBlur={() => text !== value && onSave(text)} />
-    </label>
+    <div className="meta-field copyable">
+      <div className="meta-head">
+        <span>{label}</span>
+        {text.trim() && <PlanCopy text={text.trim()} title={`Copy ${label.toLowerCase()}`} />}
+      </div>
+      <AutoTextarea aria-label={label} value={text} minRows={1} onChange={(e) => setText(e.target.value)} onBlur={() => text !== value && onSave(text)} />
+    </div>
   )
 }
 
+/** A quiet icon-only copy button that shows when its `.copyable` parent is hovered. */
+function PlanCopy({ text, title }: { text: string; title: string }) {
+  return <CopyButton className="plan-copy" label="" title={title} text={text} html={textToHtml(text)} />
+}
+
 function GoalCard({ goal, index, onChange, onDelete }: { goal: Goal; index: number; onChange(g: Goal): void; onDelete(): void }) {
+  const { settings } = useStore()
   const [editing, setEditing] = useState(goal.goal === 'New goal')
   const [draft, setDraft] = useState(goal)
 
@@ -279,20 +288,30 @@ function GoalCard({ goal, index, onChange, onDelete }: { goal: Goal; index: numb
           ))}
         </select>
         <div className="spacer" />
+        <PlanCopy text={goalToText(goal, index, settings)} title={`Copy all of goal ${index + 1}`} />
         <button className="icon-btn" onClick={() => (setDraft(goal), setEditing(true))} aria-label="Edit goal">
           <Pencil size={14} />
         </button>
       </div>
-      <h4 className="goal-text">{goal.goal}</h4>
-      {goal.problem && <p className="goal-problem">{goal.problem}</p>}
+      <div className="copyable copy-line">
+        <h4 className="goal-text">{goal.goal}</h4>
+        <PlanCopy text={goal.goal} title="Copy goal" />
+      </div>
+      {goal.problem && (
+        <div className="copyable copy-line">
+          <p className="goal-problem">{goal.problem}</p>
+          <PlanCopy text={goal.problem} title="Copy problem" />
+        </div>
+      )}
       <ul className="objectives">
         {goal.objectives.map((o, j) => (
-          <li key={o.id}>
+          <li key={o.id} className="copyable">
             <span className="obj-label">
               {index + 1}
               {String.fromCharCode(97 + j)}
             </span>
             <span className="obj-text">{o.text}</span>
+            <PlanCopy text={o.text} title={`Copy objective ${index + 1}${String.fromCharCode(97 + j)}`} />
             <select
               className={`status-select mini s-${o.status}`}
               value={o.status}
@@ -310,13 +329,19 @@ function GoalCard({ goal, index, onChange, onDelete }: { goal: Goal; index: numb
       {(goal.interventions || goal.progress || goal.targetDate) && (
         <div className="goal-foot">
           {goal.interventions && (
-            <div className="goal-meta">
-              <b>Interventions</b> {goal.interventions}
+            <div className="goal-meta copyable">
+              <b>
+                Interventions <PlanCopy text={goal.interventions} title="Copy interventions" />
+              </b>
+              {goal.interventions}
             </div>
           )}
           {goal.progress && (
-            <div className="goal-meta">
-              <b>Latest progress</b> {goal.progress}
+            <div className="goal-meta copyable">
+              <b>
+                Latest progress <PlanCopy text={goal.progress} title="Copy progress" />
+              </b>
+              {goal.progress}
             </div>
           )}
           {goal.targetDate && (

@@ -110,7 +110,7 @@ export function AutoTextarea({ value, minRows = 2, ref: outer, ...rest }: Textar
 }
 
 /** Copy button with a brief checkmark confirmation. */
-export function CopyButton({ text, html, label = 'Copy', size = 'sm', variant = 'ghost', onCopied, title }: {
+export function CopyButton({ text, html, label = 'Copy', size = 'sm', variant = 'ghost', onCopied, title, className = '' }: {
   text: string
   html: string
   label?: string
@@ -118,6 +118,7 @@ export function CopyButton({ text, html, label = 'Copy', size = 'sm', variant = 
   variant?: Variant
   onCopied?(): void
   title?: string
+  className?: string
 }) {
   const [done, setDone] = useState(false)
   const timer = useRef<number | undefined>(undefined)
@@ -127,7 +128,7 @@ export function CopyButton({ text, html, label = 'Copy', size = 'sm', variant = 
       size={size}
       variant={variant}
       title={title}
-      className={done ? 'copied' : ''}
+      className={`${className} ${done ? 'copied' : ''}`}
       icon={done ? <Check size={14} /> : <Copy size={14} />}
       onClick={async () => {
         await window.echo.copy(text, html)

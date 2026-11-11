@@ -2092,6 +2092,48 @@ input[type='checkbox'] {
   background: var(--surface);
   border-color: var(--accent);
 }
+/* Per-section copy on the plan: a small icon that appears when its row is hovered, so pieces paste into separate EHR fields. */
+.btn.plan-copy {
+  padding: 3px;
+  margin: -3px 0;
+  vertical-align: middle;
+  color: var(--text-3);
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s, background 0.12s;
+}
+.btn.plan-copy svg {
+  width: 12px;
+  height: 12px;
+}
+.copyable:hover .plan-copy,
+.goal-card:hover .goal-head .plan-copy,
+.plan-copy:focus-visible,
+.btn.plan-copy.copied {
+  opacity: 1;
+}
+.btn.plan-copy.copied {
+  color: var(--ok);
+}
+.copy-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+.copy-line > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.copy-line .plan-copy {
+  margin-top: 1px;
+}
+.meta-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.goal-meta b .plan-copy {
+  margin-left: 2px;
+}
 .history h4 {
   margin-bottom: 8px;
 }

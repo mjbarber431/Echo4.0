@@ -1,4 +1,4 @@
-import type { Client, Note, NoteSection, Settings, TreatmentPlan } from './types'
+import type { Client, Goal, Note, NoteSection, Settings, TreatmentPlan } from './types'
 import { GOAL_STATUS_LABEL, NOTE_TYPE_LABEL } from './types'
 import { formatDateUS, isTelehealth, placeOfService } from './compliance'
 import { noteDiagnoses } from './diagnosis'
@@ -98,18 +98,7 @@ export function noteToHtml(note: Note, client: Client, settings: Settings): stri
 export function planToText(plan: TreatmentPlan, client: Client, settings: Settings): string {
   const parts: string[] = [heading('Treatment Plan', settings)]
   if (client.diagnoses.length) parts.push(`Diagnosis: ${client.diagnoses.map((d) => `${d.code} ${d.description}`).join('; ')}`)
-  plan.goals.forEach((g, i) => {
-    const lines = [
-      `${heading(`Goal ${i + 1}`, settings)} (${GOAL_STATUS_LABEL[g.status]})`,
-      `Problem: ${g.problem}`,
-      `Goal: ${g.goal}`,
-      ...g.objectives.map((o, j) => `Objective ${i + 1}${String.fromCharCode(97 + j)}: ${o.text} (${GOAL_STATUS_LABEL[o.status]})`),
-      `Interventions: ${g.interventions}`
-    ]
-    if (g.targetDate) lines.push(`Target date: ${formatDateUS(g.targetDate)}`)
-    if (g.progress) lines.push(`Progress: ${g.progress}`)
-    parts.push(lines.join('\n'))
-  })
+  plan.goals.forEach((g, i) => parts.push(goalToText(g, i, settings)))
   const meta = [
     plan.frequency && `Frequency: ${plan.frequency}`,
     plan.modalities && `Modalities: ${plan.modalities}`,
@@ -118,6 +107,20 @@ export function planToText(plan: TreatmentPlan, client: Client, settings: Settin
   ].filter(Boolean)
   if (meta.length) parts.push(meta.join('\n'))
   return parts.join('\n\n')
+}
+
+/** One goal as it reads in the copied plan, for pasting a goal on its own. */
+export function goalToText(g: Goal, i: number, settings: Settings): string {
+  const lines = [
+    `${heading(`Goal ${i + 1}`, settings)} (${GOAL_STATUS_LABEL[g.status]})`,
+    `Problem: ${g.problem}`,
+    `Goal: ${g.goal}`,
+    ...g.objectives.map((o, j) => `Objective ${i + 1}${String.fromCharCode(97 + j)}: ${o.text} (${GOAL_STATUS_LABEL[o.status]})`),
+    `Interventions: ${g.interventions}`
+  ]
+  if (g.targetDate) lines.push(`Target date: ${formatDateUS(g.targetDate)}`)
+  if (g.progress) lines.push(`Progress: ${g.progress}`)
+  return lines.join('\n')
 }
 
 export function textToHtml(text: string): string {
