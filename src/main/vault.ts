@@ -56,7 +56,10 @@ export const DEFAULT_SETTINGS: Settings = {
   liveCoverage: false,
   lockEnabled: false,
   lockMinutes: 10,
-  onboarded: false
+  onboarded: false,
+  ehrs: [],
+  ehrLayout: 'side',
+  ehrOpenOnChart: true
 }
 
 // Echo used to run on OpenAI. Settings that still name an OpenAI model move to

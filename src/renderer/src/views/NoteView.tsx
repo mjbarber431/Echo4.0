@@ -3,17 +3,17 @@ import { AlertTriangle, ArrowLeft, Check, CheckCircle2, ChevronDown, Circle, Cir
 import type { AiSuggestions, Client, Note, NoteSection } from '@shared/types'
 import { GOAL_STATUS_LABEL, modelLabel, NOTE_TYPE_LABEL } from '@shared/types'
 import { auditChecks, CPT_OPTIONS, isTelehealth, scanRisk, todayISO, type Check as AuditCheck } from '@shared/compliance'
-import { headerLines, noteToHtml, noteToText, sectionHtml, sectionText } from '@shared/format'
+import { headerLines, sectionHtml, sectionText } from '@shared/format'
 import { noteDiagnoses, sameDiagnoses } from '@shared/diagnosis'
-import { finalizeClient } from '@shared/finalize'
 import { sectionsFor } from '@shared/prompts'
 import { buildQueue, isModelFailure, suggestModel, type NoteJob } from '@shared/queue'
-import { api, nowISO, relativeDay, uid } from '../lib/util'
+import { relativeDay } from '../lib/util'
 import { useCommand, useStore, type Amended } from '../store'
 import { DictationSurface, useTranscript } from '../components/Dictation'
 import type { DictationController } from '../lib/useDictation'
 import { useCoverage, type Coverage } from '../lib/useCoverage'
 import { AutoTextarea, Avatar, Button, CopyButton, Kbd } from '../components/ui'
+import { copyNote, finalizedMessage, finalizeNote } from '../lib/finalizeNote'
 
 const PLACEHOLDER: Record<Note['type'], string> = {
   progress: 'Talk it through like you would with a colleague. How they’ve been, what you worked on, how they responded, what’s next.\n\nRough and out of order is fine. Echo sorts it into the note.',
@@ -43,7 +43,7 @@ const FOLLOW_UP_CHECKS = new Set(['goals', 'risk'])
 
 function NoteEditor({ note, client }: { note: Note; client: Client }) {
   const store = useStore()
-  const { settings, saveNote, saveClient, navigate, toast, noteSidebar, setNoteSidebar } = store
+  const { settings, saveNote, navigate, toast, noteSidebar, setNoteSidebar } = store
   // Writing runs in the store, so the clinician can leave and come back while it finishes.
   const job = store.jobs[note.id]
   const busy: Busy = job && !job.error ? job : null
@@ -58,6 +58,11 @@ function NoteEditor({ note, client }: { note: Note; client: Client }) {
   const latest = useRef(note)
   latest.current = note
   const followRef = useRef('')
+  /** Being charted: Echo stays on the batch rather than sending the clinician back to the client. */
+  const charting = !!store.charting?.includes(note.id)
+  /** From a note opened while charting, the way back to the batch. */
+  const backToChart = charting ? { label: 'Back to charting', run: () => navigate({ view: 'chart', id: note.id }) } : undefined
+
 
   const update = (patch: Partial<Note>) => {
     const base = latest.current
@@ -126,7 +131,7 @@ function NoteEditor({ note, client }: { note: Note; client: Client }) {
     if (busy || final || !canWrite) return
     if (generated && !window.confirm('Regenerate the note from the dictation? Edits you made to the note text will be replaced.')) return
     store.writeNote(note.id, live(transcript) ? transcript.finish() : undefined, model)
-    navigate({ view: 'client', id: client.id })
+    if (!charting) navigate({ view: 'client', id: client.id })
   }
 
   // Rewritten a few times on the same model: offer the next one up, for this note.
@@ -160,30 +165,18 @@ function NoteEditor({ note, client }: { note: Note; client: Client }) {
   }
 
   const copyAll = async () => {
-    const current = latest.current
-    await api().copy(noteToText(current, client, settings), noteToHtml(current, client, settings))
-    update({ copiedAt: nowISO() })
-    toast('Copied. Paste into your EHR with ⌘V.', 'success')
+    latest.current = await copyNote(store, latest.current, client)
+    toast('Copied. Paste into your EHR with ⌘V.', 'success', backToChart)
   }
 
   const finalize = async (andCopy: boolean) => {
     if (!generated || final || busy) return
-    const current = latest.current
-    const blocking = auditChecks(current, client).filter((c) => c.level === 'error')
-    if (blocking.length && !window.confirm(`Audit check: ${blocking.map((c) => c.label).join('; ')}.\n\nFinalize anyway?`)) return
-    const now = nowISO()
-    store.dismissJob(note.id)
-    if (!current.finalizedAt) saveClient(finalizeClient(current, client, settings, uid, now))
-    const next: Note = { ...current, status: 'final', finalizedAt: current.finalizedAt ?? now }
+    const next = await finalizeNote(store, latest.current, client, andCopy)
+    if (!next) return
     latest.current = next
-    await saveNote(next)
     setAmended(null)
     setFollowing(false)
-    if (andCopy) {
-      await api().copy(noteToText(next, client, settings), noteToHtml(next, client, settings))
-      update({ copiedAt: nowISO() })
-      toast(note.type === 'termination' ? 'Finalized and copied. Client moved to discharged.' : 'Finalized and copied. Plan and context updated.', 'success')
-    } else toast('Note finalized', 'success')
+    toast(andCopy ? finalizedMessage(note) : 'Note finalized', 'success', backToChart)
   }
 
   useCommand('generate', () => void (followingUp ? applyFollowUp() : generate()))
@@ -235,7 +228,8 @@ function NoteEditor({ note, client }: { note: Note; client: Client }) {
               onClick={() => {
                 if (window.confirm('Delete this draft?')) {
                   store.deleteNote(note.id)
-                  backToClient()
+                  if (charting) navigate({ view: 'chart' })
+                  else backToClient()
                 }
               }}
             >
@@ -244,6 +238,14 @@ function NoteEditor({ note, client }: { note: Note; client: Client }) {
           )}
         </div>
       </header>
+      {charting && (
+        <div className="chart-return no-drag">
+          <span>This note is in the batch you’re charting.</span>
+          <button className="link" onClick={() => navigate({ view: 'chart', id: note.id })}>
+            Back to charting
+          </button>
+        </div>
+      )}
 
       <div className="page-body with-side">
         <div className="note-main">

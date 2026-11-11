@@ -18,6 +18,7 @@ import { readLegacyBackup } from './legacyBackup'
 import { Vault } from './vault'
 import { LinkServer, macName, newPairing, pairingUrl, type LinkRequest } from './link'
 import * as ai from './ai'
+import { openEhrs, showEhr } from './ehr'
 import * as local from './local'
 import { commitLive, sendLiveAudio, startLive, stopLive } from './live'
 import { onTranscriberStatus, prepareTranscriber, stopTranscriber, transcribe, transcriberStatus } from './transcriber'
@@ -234,7 +235,12 @@ function buildMenu(): void {
         { label: 'Start / Stop Dictation', accelerator: 'Cmd+R', click: () => send('record') },
         { label: 'Generate Note', accelerator: 'Cmd+Enter', click: () => send('generate') },
         { label: 'Copy Note for EHR', accelerator: 'Cmd+Shift+C', click: () => send('copy-note') },
-        { label: 'Finalize Note', accelerator: 'Cmd+S', click: () => send('finalize') }
+        { label: 'Finalize Note', accelerator: 'Cmd+S', click: () => send('finalize') },
+        { type: 'separator' },
+        { label: 'Chart New Notes', accelerator: 'Cmd+Shift+E', click: () => send('chart') },
+        { label: 'Next Note to Chart', accelerator: 'Cmd+]', click: () => send('chart-next') },
+        { label: 'Previous Note to Chart', accelerator: 'Cmd+[', click: () => send('chart-prev') },
+        { label: 'Open EHRs', accelerator: 'Alt+Cmd+E', click: () => send('open-ehrs') }
       ]
     },
     {
@@ -320,6 +326,9 @@ function registerIpc(): void {
     if (!MOCK && vault.data.settings.transcribeModel !== model) prepareTranscriber(vault.data.settings.transcribeModel).catch(() => {})
     return publicSettings()
   })
+
+  ipcMain.handle('ehr:open', () => openEhrs(win, vault.data.settings.ehrs, vault.data.settings.ehrLayout))
+  ipcMain.handle('ehr:show', (_e, id: string) => showEhr(vault.data.settings.ehrs, id))
 
   ipcMain.handle('settings:api-key', (_e, key: string) => {
     vault.data.apiKey = key.trim()

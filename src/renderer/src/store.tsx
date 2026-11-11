@@ -4,7 +4,7 @@ import type { ClientDocument } from '@shared/documents'
 import { NOTE_TYPE_LABEL } from '@shared/types'
 import { DEFAULT_CLIENT_SETTING, defaultAttestations, defaultSession } from '@shared/compliance'
 import { applyAiResult, applyAmendResult, applyContextRebuild, applyPlanResult, needsContextRebuild } from '@shared/finalize'
-import { isModelFailure, type NoteJob, type PlanDraft, type PlanJob } from '@shared/queue'
+import { buildQueue, chartNotes, extendChart, isModelFailure, type NoteJob, type PlanDraft, type PlanJob } from '@shared/queue'
 import { memoToNote, type ClientMatch } from '@shared/mobile'
 import { api, errorMessage, nowISO, uid } from './lib/util'
 
@@ -14,6 +14,8 @@ export type Route =
   | { view: 'queue' }
   | { view: 'client'; id: string; tab?: ClientTab }
   | { view: 'note'; id: string }
+  /** Charting: the batch of new notes, open on one of them. */
+  | { view: 'chart'; id?: string }
   | { view: 'document'; id: string }
   | { view: 'settings' }
   | { view: 'library' }
@@ -108,6 +110,15 @@ interface Store {
   /** The Library resource open in the viewer, if any. */
   viewing: string | null
   viewResource(id: string | null): void
+  /** The notes being charted, in order, or null when not charting. Charted notes stay so the clinician can go back. */
+  charting: string[] | null
+  /** Start going through the new notes (and open the EHRs, if Settings says so). */
+  startCharting(): void
+  stopCharting(): void
+  /** Open the EHRs in Chrome and arrange the windows. */
+  openEhrs(): Promise<void>
+  /** Bring one EHR to the front in Chrome. */
+  showEhr(id: string): Promise<void>
   /** The client list is hidden while writing a note unless the clinician brings it back. */
   noteSidebar: boolean
   setNoteSidebar(open: boolean): void
@@ -146,6 +157,7 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
   const [unseen, setUnseen] = useState<Record<string, true>>({})
   const [toasts, setToasts] = useState<Toast[]>([])
   const [noteSidebar, setNoteSidebar] = useState(false)
+  const [charting, setCharting] = useState<string[] | null>(null)
   const [viewing, setViewing] = useState<string | null>(null)
   const [rewrites, setRewrites] = useState<Record<string, Rewrites>>({})
   const [planJobs, setPlanJobsState] = useState<Record<string, PlanJob>>({})
@@ -219,6 +231,31 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
       setTimeout(() => dismissToast(id), action ? 8000 : tone === 'error' ? 6000 : 2600)
     },
     [dismissToast]
+  )
+
+  // While charting, notes that finish writing join the end of the list, and deleted ones leave it.
+  useEffect(() => {
+    if (charting) setCharting((ids) => ids && extendChart(ids, notes, buildQueue(notes, clients, jobs)))
+  }, [notes, clients, jobs, charting])
+
+  const openEhrs = useCallback(async () => {
+    try {
+      const { note } = await api().openEhrs()
+      if (note) toast(note)
+    } catch (err) {
+      toast(errorMessage(err), 'error')
+    }
+  }, [toast])
+
+  const showEhr = useCallback(
+    async (id: string) => {
+      try {
+        await api().showEhr(id)
+      } catch (err) {
+        toast(errorMessage(err), 'error')
+      }
+    },
+    [toast]
   )
 
   // Recordings arrive from the phone while Echo is open.
@@ -495,6 +532,23 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
       toasts,
       noteSidebar,
       setNoteSidebar,
+      charting,
+      startCharting() {
+        const list = chartNotes(buildQueue(notesRef.current, clientsRef.current, jobsRef.current))
+        if (!list.length) {
+          const writing = Object.values(jobsRef.current).some((j) => !j.error)
+          toast(writing ? 'Nothing to chart yet. Notes still writing join in when they’re done.' : 'Nothing to chart: every note is finalized and copied.')
+          if (!writing) return
+        }
+        setCharting(list.map((n) => n.id))
+        setRoute({ view: 'chart', id: list[0]?.id })
+        if (settings.ehrOpenOnChart !== false && settings.ehrs?.length) void openEhrs()
+      },
+      stopCharting() {
+        setCharting(null)
+      },
+      openEhrs,
+      showEhr,
       viewing,
       viewResource: setViewing,
       on,
@@ -540,6 +594,7 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
         setAmends({})
         setRewrites({})
         setUnseen({})
+        setCharting(null)
         setSettings(state.settings)
         setClients(() => state.clients)
         setNotes(() => state.notes)
@@ -624,7 +679,7 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
         void api().deleteNote(id)
       }
     }
-  }, [settings, clients, notes, inbox, documents, presenting, route, jobs, planJobs, planDrafts, amends, rewrites, unseen, toasts, noteSidebar, viewing, on, emit, toast, dismissToast, markSeen, setNotes, setClients, setRoute, setJob, setPlanJob])
+  }, [settings, clients, notes, inbox, documents, presenting, route, jobs, planJobs, planDrafts, amends, rewrites, unseen, toasts, noteSidebar, charting, openEhrs, showEhr, viewing, on, emit, toast, dismissToast, markSeen, setNotes, setClients, setRoute, setJob, setPlanJob])
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>
 }

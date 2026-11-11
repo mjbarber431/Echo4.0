@@ -1,11 +1,11 @@
 import { useMemo, type ReactNode } from 'react'
 import { InboxRow } from '../components/InboxRow'
-import { CalendarClock, CheckCircle2, CircleAlert, FilePen, FileText, RotateCcw, Smartphone, Target, UserPlus } from 'lucide-react'
+import { CalendarClock, CheckCircle2, CircleAlert, ClipboardList, ExternalLink, FilePen, FileText, RotateCcw, Smartphone, Target, UserPlus } from 'lucide-react'
 import type { Client, Note } from '@shared/types'
 import { NOTE_TYPE_LABEL } from '@shared/types'
 import { planReviewDue, todayISO } from '@shared/compliance'
 import { noteToHtml, noteToText } from '@shared/format'
-import { buildPlanQueue, buildQueue } from '@shared/queue'
+import { buildPlanQueue, buildQueue, chartNotes, chartStatus } from '@shared/queue'
 import { longDate, relativeDay } from '../lib/util'
 import { useStore } from '../store'
 import { Avatar, Button, CopyButton, Kbd } from '../components/ui'
@@ -16,7 +16,7 @@ import { Avatar, Button, CopyButton, Kbd } from '../components/ui'
  * written show in the sidebar's Activity panel, and new notes start from ⌘N.
  */
 export function QueueView({ onNewClient }: { onNewClient(): void }) {
-  const { clients, notes, inbox, jobs, unseen, planJobs, planDrafts, settings, navigate, saveNote, retryJob, retryPlan } = useStore()
+  const { clients, notes, inbox, jobs, unseen, planJobs, planDrafts, settings, navigate, saveNote, retryJob, retryPlan, charting, startCharting, stopCharting, openEhrs } = useStore()
   const today = todayISO()
   const byId = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients])
   const q = useMemo(() => buildQueue(notes, clients, jobs, today), [notes, clients, jobs, today])
@@ -24,6 +24,10 @@ export function QueueView({ onNewClient }: { onNewClient(): void }) {
   // A plan being drafted (or waiting for review) isn't also due for review.
   const reviews = clients.filter((c) => c.status === 'active' && planReviewDue(c, today) && !planJobs[c.id] && !planDrafts[c.id])
   const total = inbox.length + q.failed.length + q.ready.length + q.uncopied.length + q.unwritten.length + reviews.length + p.failed.length + p.ready.length
+
+  const toChart = chartNotes(q).length
+  const charted = charting ? notes.filter((n) => charting.includes(n.id)) : []
+  const resume = charted.find((n) => chartStatus(n) !== 'done') ?? charted[0]
 
   const open = (n: Note) => navigate({ view: 'note', id: n.id })
   const markCopied = (n: Note) => void saveNote({ ...n, copiedAt: new Date().toISOString() })
@@ -66,6 +70,32 @@ export function QueueView({ onNewClient }: { onNewClient(): void }) {
         <div className="today-hero">
           <p className="eyebrow">{longDate(today)}</p>
           <h1 className="display">{total ? `${total} to do.` : 'All caught up.'}</h1>
+          {(toChart > 0 || !!settings.ehrs?.length) && (
+            <div className="row gap chart-start">
+              {charting ? (
+                <>
+                  <Button variant="primary" icon={<ClipboardList size={15} />} onClick={() => navigate({ view: 'chart', id: resume?.id })} title="Back to the notes you're charting">
+                    Resume charting
+                  </Button>
+                  <Button variant="ghost" onClick={stopCharting}>
+                    Stop charting
+                  </Button>
+                </>
+              ) : (
+                toChart > 0 && (
+                  <Button variant="primary" icon={<ClipboardList size={15} />} onClick={startCharting} title="⇧⌘E">
+                    Chart {toChart} note{toChart === 1 ? '' : 's'}
+                  </Button>
+                )
+              )}
+              {!!settings.ehrs?.length && (
+                <Button variant="ghost" icon={<ExternalLink size={14} />} onClick={() => void openEhrs()} title="⌥⌘E">
+                  Open EHRs
+                </Button>
+              )}
+              {toChart > 0 && !charting && <Kbd>⇧⌘E</Kbd>}
+            </div>
+          )}
         </div>
 
         {clients.length === 0 ? (

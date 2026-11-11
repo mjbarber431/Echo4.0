@@ -27,6 +27,8 @@ const api: EchoApi = {
     return () => ipcRenderer.removeListener('update', listener)
   },
   installUpdate: () => ipcRenderer.send('update:install'),
+  openEhrs: () => ipcRenderer.invoke('ehr:open'),
+  showEhr: (id) => ipcRenderer.invoke('ehr:show', id),
   liveStart: () => ipcRenderer.invoke('live:start'),
   liveAudio: (pcm) => ipcRenderer.send('live:audio', pcm),
   liveCommit: () => ipcRenderer.send('live:commit'),

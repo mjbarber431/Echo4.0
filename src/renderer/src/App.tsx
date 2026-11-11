@@ -12,6 +12,7 @@ import { Toasts } from './components/ui'
 import { QueueView } from './views/QueueView'
 import { ClientView } from './views/ClientView'
 import { NoteView } from './views/NoteView'
+import { ChartView } from './views/ChartView'
 import { SettingsView } from './views/SettingsView'
 import { LibraryView } from './views/LibraryView'
 import { DocumentView } from './views/DocumentView'
@@ -65,6 +66,11 @@ export function App() {
         return setBackup('import')
       case 'legacy-import':
         return setLegacyImport(true)
+      // Neither runs behind the lock screen.
+      case 'chart':
+        return !locked && settings.onboarded && store.startCharting()
+      case 'open-ehrs':
+        return !locked && settings.onboarded && void store.openEhrs()
       // Only from the client page: leaving a note mid-dictation would drop the recording.
       case 'scratchpad':
         return route.view === 'client' && navigate({ view: 'client', id: route.id, tab: route.tab === 'scratchpad' ? 'notes' : 'scratchpad' })
@@ -89,7 +95,8 @@ export function App() {
   if (!settings.onboarded) return <Onboarding />
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />
 
-  const showSidebar = route.view !== 'note' || noteSidebar
+  // Charting keeps to its own list; a tiled Echo needs the room.
+  const showSidebar = route.view !== 'chart' && (route.view !== 'note' || noteSidebar)
 
   return (
     <div className={showSidebar ? 'app' : 'app no-sidebar'}>
@@ -98,6 +105,7 @@ export function App() {
         {route.view === 'queue' && <QueueView onNewClient={() => setNewClient({ name: '' })} />}
         {route.view === 'client' && <ClientView key={route.id} clientId={route.id} tab={route.tab} />}
         {route.view === 'note' && <NoteView noteId={route.id} />}
+        {route.view === 'chart' && <ChartView noteId={route.id} />}
         {route.view === 'settings' && <SettingsView />}
         {route.view === 'library' && <LibraryView />}
         {route.view === 'document' && <DocumentView key={route.id} docId={route.id} />}

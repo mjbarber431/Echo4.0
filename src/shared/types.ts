@@ -3,6 +3,7 @@ import type { LegacyClientSummary, LegacyImportReport } from './legacy'
 import type { Letter, Letterhead, Signer } from './letter'
 import type { ClientDocument } from './documents'
 import type { ChatEvent, ChatSummary, ChatThread } from './chat'
+import type { Ehr, EhrLayout } from './ehr'
 
 // Data model shared by the main process and the renderer.
 // IDs are UUIDs and every record carries timestamps so a future iOS companion
@@ -72,6 +73,8 @@ export interface Client {
   scratchpad: string
   plan: TreatmentPlan | null
   planHistory: PlanSnapshot[]
+  /** The EHR (Ehr.id from Settings) this client's notes go into, so charting can take the clinician straight there. */
+  ehrId?: string
   createdAt: string
   updatedAt: string
 }
@@ -168,6 +171,12 @@ export interface Settings {
   localModel?: boolean
   /** Experimental: let the local model think before it writes. Slower. */
   localThinking?: boolean
+  /** The EHRs Echo opens in Chrome when it's time to chart. */
+  ehrs?: Ehr[]
+  /** How Echo arranges its window and the EHRs' when it opens them. */
+  ehrLayout?: EhrLayout
+  /** Open the EHRs when charting starts. */
+  ehrOpenOnChart?: boolean
 }
 
 /** Settings as the renderer sees them: the API key never leaves the main process. */
@@ -328,6 +337,10 @@ export interface EchoApi {
   onUpdate(handler: (status: UpdateStatus) => void): () => void
   /** Quits and installs a downloaded update. */
   installUpdate(): void
+  /** Opens the EHRs from Settings in Chrome and arranges the windows. Resolves with a note for the clinician, if any. */
+  openEhrs(): Promise<{ note?: string }>
+  /** Brings one EHR (by Ehr.id) to the front in Chrome, ready to paste into. */
+  showEhr(id: string): Promise<void>
   /** Opens the live transcription stream; false when there's none to open (demo mode). Events arrive through onLive. */
   liveStart(): Promise<boolean>
   /** 16 kHz mono PCM16 audio for the live stream. */

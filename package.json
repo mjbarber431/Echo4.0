@@ -64,6 +64,7 @@
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Echo uses the microphone so you can dictate session summaries.",
         "NSLocalNetworkUsageDescription": "Echo receives the dictations you record on your iPhone over your local network.",
+        "NSAppleEventsUsageDescription": "Echo opens your EHRs in Google Chrome and arranges their windows beside Echo. It doesn't read or type into the pages.",
         "NSBonjourServices": [
           "_echo-memo._tcp"
         ]

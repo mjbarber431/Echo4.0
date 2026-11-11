@@ -134,3 +134,44 @@ export function nextModelUp(model: string): string | null {
 export function suggestModel(model: string, retries: number): string | null {
   return retries >= RETRIES_BEFORE_SUGGESTING ? nextModelUp(model) : null
 }
+
+// ---------------------------------------------------------------------------
+// Charting: going through the notes written since the last batch, one after
+// another, getting each into the EHR without hunting for it on client pages.
+// ---------------------------------------------------------------------------
+
+/** Where a note is in charting: still to review, finalized but not copied, or in the clipboard (so presumably the EHR). */
+export type ChartStatus = 'review' | 'copy' | 'done'
+
+export function chartStatus(note: Note): ChartStatus {
+  if (note.status === 'draft') return 'review'
+  return note.copiedAt ? 'done' : 'copy'
+}
+
+/** The notes to chart, in the order they were written: drafts waiting for review and finalized notes not yet copied. */
+export function chartNotes(q: Queue): Note[] {
+  return [...q.ready, ...q.uncopied].sort((a, b) => (a.generatedAt ?? a.updatedAt).localeCompare(b.generatedAt ?? b.updatedAt))
+}
+
+/**
+ * The charting list after notes have finished or been deleted: notes still in the record keep their place
+ * (charted ones included, so going back works), and notes that became ready since are added at the end.
+ */
+export function extendChart(ids: string[], notes: Note[], q: Queue): string[] {
+  const known = new Set(notes.map((n) => n.id))
+  const kept = ids.filter((id) => known.has(id))
+  const have = new Set(kept)
+  const added = chartNotes(q).filter((n) => !have.has(n.id)).map((n) => n.id)
+  return added.length || kept.length !== ids.length ? [...kept, ...added] : ids
+}
+
+/** The next note after `id` that still needs something, wrapping round to the start; null when all are charted. */
+export function nextToChart(ids: string[], notes: Note[], id: string): Note | null {
+  const byId = new Map(notes.map((n) => [n.id, n]))
+  const i = ids.indexOf(id)
+  for (let k = 1; k <= ids.length; k++) {
+    const n = byId.get(ids[(i + k) % ids.length])
+    if (n && n.id !== id && chartStatus(n) !== 'done') return n
+  }
+  return null
+}

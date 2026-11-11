@@ -6,6 +6,7 @@ import { BackupModal } from '../components/BackupModal'
 import { LegacyImportModal } from '../components/LegacyImportModal'
 import { AutoTextarea, Button, Field, Segmented, Toggle } from '../components/ui'
 import { IphoneSettings } from '../components/IphoneSettings'
+import { EhrSettings } from '../components/EhrSettings'
 
 export function SettingsView() {
   const { settings, saveSettings, setApiKey, toast } = useStore()
@@ -103,6 +104,8 @@ export function SettingsView() {
             />
           </Field>
         </section>
+
+        <EhrSettings />
 
         <section className="settings-group">
           <h2>Claude</h2>
