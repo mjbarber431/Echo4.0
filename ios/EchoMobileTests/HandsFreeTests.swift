@@ -24,7 +24,7 @@ final class CommandSpotterTests: XCTestCase {
 
     func testEveryCommand() {
         let cases: [(String, HandsFreeCommand)] = [
-            ("new note", .newNote), ("next note", .newNote), ("pause", .pause), ("resume", .resume),
+            ("new note", .newNote), ("next note", .newNote), ("you node", .newNote), ("next node", .newNote), ("pause", .pause), ("resume", .resume),
             ("discard note", .discard), ("delete note", .discard), ("undo", .undo), ("finish", .finish),
             ("stopped recording", .finish), ("status", .status), ("help", .help), ("where am i", .status),
         ]

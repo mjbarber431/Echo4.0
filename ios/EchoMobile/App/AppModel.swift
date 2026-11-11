@@ -47,6 +47,7 @@ final class AppModel {
         handsFree.onEnded = { [weak self] in self?.collectHandsFreeNotes() }
         link.onFound = { [weak self] in self?.sendWaiting() }
         speech.onReady = { [weak self] in self?.transcribeWaiting() }
+        link.onVocabulary = { [weak self] terms in self?.speech.setCustomVocabulary(terms) }
         recorder.onChange = { [weak self] in self?.recorderChanged() }
         NotificationCenter.default.addObserver(forName: UIApplication.protectedDataDidBecomeAvailableNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {

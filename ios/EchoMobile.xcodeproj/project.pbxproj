@@ -44,6 +44,7 @@
 		4117BC28C7B9DA971716BB42 /* EchoActivityBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FE33BCF89024F774FD88724 /* EchoActivityBundle.swift */; };
 		41923B5D4585336A97DB1968 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F3B11EA5067F7D44983480DA /* Assets.xcassets */; };
 		46653121405E3B77EED66617 /* voice-eric-discarded.m4a in Resources */ = {isa = PBXBuildFile; fileRef = BF217F521995C0B6603F8130 /* voice-eric-discarded.m4a */; };
+		48389800E164F9B7986D3B01 /* VocabularyChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC3297F48F570243714A3BD1 /* VocabularyChecker.swift */; };
 		48A00F318A7A7732A32EC2F7 /* voice-sarah-note-18.m4a in Resources */ = {isa = PBXBuildFile; fileRef = A3E4095221D7516E740DA45E /* voice-sarah-note-18.m4a */; };
 		4EC954B08124A996399B3930 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4D83BB0B96CC5B63DDE8C36 /* HomeView.swift */; };
 		51058A976CE82EAC906B777D /* AppLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCC98915D2A3AC638333D6BE /* AppLock.swift */; };
@@ -121,6 +122,7 @@
 		F81483CF90E6D26CB4B7620A /* voice-eric-new-note.m4a in Resources */ = {isa = PBXBuildFile; fileRef = CBE62E914790C614E4C56E14 /* voice-eric-new-note.m4a */; };
 		FA5F99B870FFC45B561A8CF9 /* RecordingLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB8D08A3947F473179C96E7 /* RecordingLiveActivity.swift */; };
 		FC1DC04EA9EDDE218614C91E /* MacLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA8B3316F8A5300174F89D48 /* MacLink.swift */; };
+		FD94FC44332C555048B9969E /* clinical.json in Resources */ = {isa = PBXBuildFile; fileRef = A6B5A026660E2C142C2E7911 /* clinical.json */; };
 		FE5138FD8018E4AFF78CE7AE /* voice-eric-note-3.m4a in Resources */ = {isa = PBXBuildFile; fileRef = F6928DE5BAD47F48EA7CB6C4 /* voice-eric-note-3.m4a */; };
 		FFD6D8463417C5D526CFEEA0 /* HandsFreeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA19BBE43F86970ADCF0BF09 /* HandsFreeTests.swift */; };
 /* End PBXBuildFile section */
@@ -239,6 +241,7 @@
 		A3E4095221D7516E740DA45E /* voice-sarah-note-18.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-18.m4a"; sourceTree = "<group>"; };
 		A4D83BB0B96CC5B63DDE8C36 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		A5159DD5FFD4CEA2420E4957 /* voice-eric-mic-changed.m4a */ = {isa = PBXFileReference; path = "voice-eric-mic-changed.m4a"; sourceTree = "<group>"; };
+		A6B5A026660E2C142C2E7911 /* clinical.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = clinical.json; sourceTree = "<group>"; };
 		A6E0CDFB9D3398B3E9C3CBAA /* Style.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Style.swift; sourceTree = "<group>"; };
 		A77A1D8626E369C0CF4ACEB2 /* MemoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoDetailView.swift; sourceTree = "<group>"; };
 		AA19BBE43F86970ADCF0BF09 /* HandsFreeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandsFreeTests.swift; sourceTree = "<group>"; };
@@ -283,6 +286,7 @@
 		F88B93ADB751E943887381A9 /* voice-sarah-note-19.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-19.m4a"; sourceTree = "<group>"; };
 		F8F8EBE8C49E586E873F6786 /* HandsFreeCues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandsFreeCues.swift; sourceTree = "<group>"; };
 		F9AE3D002DE385595BD28B3E /* voice-sarah-note-4.m4a */ = {isa = PBXFileReference; path = "voice-sarah-note-4.m4a"; sourceTree = "<group>"; };
+		FC3297F48F570243714A3BD1 /* VocabularyChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyChecker.swift; sourceTree = "<group>"; };
 		FC9853BC046C332A1508908F /* RecordingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -394,6 +398,7 @@
 		76D8A94DFB25CCA863DF8EED = {
 			isa = PBXGroup;
 			children = (
+				7985D87F2507C666DBE9BBA2 /* Echo 4 */,
 				5AE004D260598B18282DC255 /* EchoActivity */,
 				0876337F2C75A19B56361C0D /* EchoMobile */,
 				DBD058C12CA81EE47318AF58 /* EchoMobileTests */,
@@ -401,6 +406,24 @@
 				DD2A6610C29794EFC7D2366E /* Shared */,
 				C4CF8C32FE171B23EB367523 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		7985D87F2507C666DBE9BBA2 /* Echo 4 */ = {
+			isa = PBXGroup;
+			children = (
+				A05E5B2BDE80A34C55791F25 /* vocabulary */,
+			);
+			name = "Echo 4";
+			path = ..;
+			sourceTree = "<group>";
+		};
+		A05E5B2BDE80A34C55791F25 /* vocabulary */ = {
+			isa = PBXGroup;
+			children = (
+				A6B5A026660E2C142C2E7911 /* clinical.json */,
+				FC3297F48F570243714A3BD1 /* VocabularyChecker.swift */,
+			);
+			path = vocabulary;
 			sourceTree = "<group>";
 		};
 		AA26B09A9C721C432F056319 /* Speech */ = {
@@ -691,6 +714,7 @@
 				CA2E7F4A8D5E7CAEA0E2021E /* chime-resumed.wav in Resources */,
 				F7D9862F74AF49C79D901DAD /* chime-saved.wav in Resources */,
 				0FF726F3178BB2A40FE775E2 /* chime-undone.wav in Resources */,
+				FD94FC44332C555048B9969E /* clinical.json in Resources */,
 				2D5FADB2907D0A736B66BC0B /* voice-eric-commands-stopped.m4a in Resources */,
 				46653121405E3B77EED66617 /* voice-eric-discarded.m4a in Resources */,
 				197DCB2E94AB9F3A73C46391 /* voice-eric-help.m4a in Resources */,
@@ -823,6 +847,7 @@
 				94544309F1DFA84883C565DD /* ShieldWindow.swift in Sources */,
 				9626F62FA82FB86C44CA7E30 /* SpeechModel.swift in Sources */,
 				1ED921A85954AEE91A3DA0AA /* Style.swift in Sources */,
+				48389800E164F9B7986D3B01 /* VocabularyChecker.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -887,7 +912,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = EchoActivity/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -912,7 +937,7 @@
 				CODE_SIGN_ENTITLEMENTS = EchoMobile/Echo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = EchoMobile/Info.plist;
@@ -1090,7 +1115,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = EchoActivity/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1115,7 +1140,7 @@
 				CODE_SIGN_ENTITLEMENTS = EchoMobile/Echo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = EchoMobile/Info.plist;

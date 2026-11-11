@@ -13,7 +13,7 @@ import UIKit
 /// (CryptoKit `combined`: nonce, ciphertext, tag) with AAD
 /// "echo-memo/1 request <id>" or "echo-memo/1 reply <id>".
 ///   request: {"device","memos":[{"id","recordedAt","durationSec","transcript"}]}
-///   reply:   {"received":[ids],"mac":"<name>"}
+///   reply:   {"received":[ids],"mac":"<name>","vocabulary":[{"text","aliases"?}]}
 /// An empty reply frame means the Mac no longer knows this phone's key.
 @MainActor @Observable
 final class MacLink {
@@ -146,7 +146,12 @@ final class MacLink {
     private struct Reply: Decodable {
         let received: [String]
         let mac: String?
+        /// The clinician's own vocabulary terms, from Echo's Settings on the Mac.
+        let vocabulary: [VocabularyEntry]?
     }
+
+    /// Called with the Mac's custom vocabulary each time it replies (older Macs don't send it).
+    var onVocabulary: (([VocabularyEntry]) -> Void)?
 
     private func exchange(_ memos: [Memo], pairing: Pairing, endpoint: NWEndpoint) async throws -> Set<UUID> {
         let iso = ISO8601DateFormatter()
@@ -165,6 +170,7 @@ final class MacLink {
         if reply.isEmpty { throw LinkError.forgotten }
         let opened = try AES.GCM.open(AES.GCM.SealedBox(combined: reply), using: key, authenticating: Data("echo-memo/1 reply \(pairing.id)".utf8))
         let decoded = try JSONDecoder().decode(Reply.self, from: opened)
+        if let vocabulary = decoded.vocabulary { onVocabulary?(vocabulary) }
         return Set(decoded.received.compactMap(UUID.init(uuidString:)))
     }
 

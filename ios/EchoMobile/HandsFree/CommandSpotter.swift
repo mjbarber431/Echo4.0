@@ -10,7 +10,11 @@ enum HandsFreeCommand: String, CaseIterable, Sendable {
     /// "okay, scratch that" and "okay, done" are dictation, not commands.
     fileprivate var phrases: [String] {
         switch self {
-        case .newNote: ["new note", "new notes", "next note", "next notes", "start new note", "start a new note"]
+        case .newNote: [
+                "new note", "new notes", "next note", "next notes", "start new note", "start a new note",
+                // How the model wrote it for some voices in testing (synthetic speech).
+                "new node", "next node", "you node", "knew note",
+            ]
         case .pause: ["pause", "paused", "pauses", "paws", "pause recording", "pause that"]
         case .resume: ["resume", "resumed", "resume recording", "unpause"]
         case .discard: [

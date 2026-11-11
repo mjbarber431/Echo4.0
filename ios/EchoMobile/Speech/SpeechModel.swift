@@ -61,6 +61,7 @@ final class SpeechModel {
                 UserDefaults.standard.set(true, forKey: Self.downloadedKey)
                 status = .ready
                 onReady?()
+                startChecker()
             } catch {
                 status = .failed(error.localizedDescription)
             }
@@ -70,6 +71,29 @@ final class SpeechModel {
     func transcribe(_ url: URL) async throws -> String {
         try await engine.transcribe(url)
     }
+
+    /// The clinician's own terms, as the Mac last sent them. Kept with file protection, like recordings.
+    private static var customVocabularyURL: URL { directory.appendingPathComponent("custom-vocabulary.json") }
+
+    private static func savedCustomVocabulary() -> [VocabularyEntry] {
+        guard let data = try? Data(contentsOf: customVocabularyURL) else { return [] }
+        return (try? JSONDecoder().decode([VocabularyEntry].self, from: data)) ?? []
+    }
+
+    /// Saves the Mac's custom terms and, if they changed, has the vocabulary checker use them.
+    func setCustomVocabulary(_ terms: [VocabularyEntry]) {
+        guard terms != Self.savedCustomVocabulary() else { return }
+        try? Self.makeDirectory()
+        try? JSONEncoder().encode(terms).write(to: Self.customVocabularyURL, options: [.atomic, .completeFileProtection])
+        if status == .ready { Task { await engine.loadChecker(in: Self.directory, custom: terms) } }
+    }
+
+    /// Starts the vocabulary checker once the speech model is ready. It downloads its own model
+    /// (about 100 MB) the first time; until it's loaded, transcripts just aren't checked.
+    private func startChecker() {
+        let custom = Self.savedCustomVocabulary()
+        Task { await engine.loadChecker(in: Self.directory, custom: custom) }
+    }
 }
 
 /// Owns the FluidAudio manager off the main thread.
@@ -77,6 +101,44 @@ actor SpeechEngine {
     private static let log = Logger(subsystem: "care.person2person.echo.mobile", category: "speech")
     private var manager: AsrManager?
     private var decoderLayers = 2
+    /// Corrects clinical terms after transcription (vocabulary/VocabularyChecker.swift).
+    private var checker: VocabularyChecker?
+    private var checkerModels: CtcModels?
+    private var loadingChecker = false
+    /// Terms that arrived while the checker was loading, to load next.
+    private var pendingCustom: [VocabularyEntry]?
+
+    func loadChecker(in dir: URL, custom: [VocabularyEntry]) async {
+        guard !loadingChecker else {
+            pendingCustom = custom
+            return
+        }
+        loadingChecker = true
+        defer {
+            loadingChecker = false
+            if let next = pendingCustom {
+                pendingCustom = nil
+                Task { await loadChecker(in: dir, custom: next) }
+            }
+        }
+        do {
+            guard let url = Bundle.main.url(forResource: "clinical", withExtension: "json") else { return }
+            let builtIn = try VocabularyList.entries(fromClinicalJSON: Data(contentsOf: url))
+            if checkerModels == nil { checkerModels = try await VocabularyChecker.loadModels(in: dir) }
+            guard let models = checkerModels else { return }
+            checker = try await VocabularyChecker(models: models, modelsDir: dir, entries: builtIn + custom)
+        } catch {
+            Self.log.error("Vocabulary checker didn't load: \((error as NSError).domain, privacy: .public) \((error as NSError).code, privacy: .public)")
+        }
+    }
+
+    /// The transcript after the vocabulary check, if the checker is ready. It needs the whole
+    /// recording in memory (about 4 MB a minute); if that fails, the transcript goes unchecked.
+    private func checked(_ result: ASRResult, url: URL, samples: [Float]? = nil) async -> String {
+        guard let checker else { return result.text }
+        guard let audio = samples ?? (try? AudioConverter().resampleAudioFile(url)) else { return result.text }
+        return await checker.check(result, audio: audio)
+    }
 
     /// `keepFiles` loads a model that's already on the phone without going near the download code.
     /// That code takes any failed load for a corrupt download and deletes the model to fetch it again,
@@ -118,13 +180,15 @@ actor SpeechEngine {
         try? FileManager.default.createDirectory(at: FileManager.default.temporaryDirectory, withIntermediateDirectories: true)
         var state = TdtDecoderState.make(decoderLayers: decoderLayers)
         do {
-            return try await manager.transcribe(url, decoderState: &state).text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let result = try await manager.transcribe(url, decoderState: &state)
+            return await checked(result, url: url).trimmingCharacters(in: .whitespacesAndNewlines)
         } catch is AudioSourceError {
             // The scratch file couldn't be made (e.g. the phone is short on space): decode in memory
             // instead, about 4 MB a minute of audio.
             let samples = try AudioConverter().resampleAudioFile(url)
             state = TdtDecoderState.make(decoderLayers: decoderLayers)
-            return try await manager.transcribe(samples, decoderState: &state).text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let result = try await manager.transcribe(samples, decoderState: &state)
+            return await checked(result, url: url, samples: samples).trimmingCharacters(in: .whitespacesAndNewlines)
         }
     }
 }
