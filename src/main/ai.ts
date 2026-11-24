@@ -12,8 +12,8 @@ import { buildAmendMessages, buildContextMessages, buildLetterMessages, buildNot
 //
 // The Anthropic BAA covers only the Messages API (with structured outputs and
 // prompt caching), the Models API and token counting, and only through an API
-// key from a HIPAA-configured organization. Echo uses nothing else: no betas,
-// no Batch or Files API, no server tools.
+// key from a HIPAA-configured organization, plus Computer Use (placer.ts, opt-in).
+// Echo uses nothing else: no betas, no Batch or Files API, no server tools.
 
 const API = 'https://api.anthropic.com'
 
@@ -24,11 +24,11 @@ export class AiError extends Error {}
  * ANTHROPIC_AUTH_TOKEN, an `ant` login profile, ANTHROPIC_LOG=debug) can send
  * PHI to another organization or write it to a log.
  */
-function anthropic(apiKey: string): Anthropic {
+export function anthropic(apiKey: string): Anthropic {
   return new Anthropic({ apiKey, authToken: null, baseURL: API, logLevel: 'off' })
 }
 
-function friendly(err: unknown): Error {
+export function friendly(err: unknown): Error {
   if (err instanceof AiError) return err
   if (err instanceof Anthropic.AuthenticationError) return new AiError('Anthropic rejected the API key. Check it in Settings.')
   if (err instanceof Anthropic.PermissionDeniedError) return new AiError('This API key isn’t allowed to do that. Check that it belongs to your HIPAA-configured organization.')

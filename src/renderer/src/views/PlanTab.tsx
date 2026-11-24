@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, CalendarCheck, Check, CircleAlert, FileDown, FolderInput, History, Pencil, Plus, RotateCcw, Sparkles, Target, Trash2, Wand2, X } from 'lucide-react'
+import { AlertTriangle, CalendarCheck, Check, CircleAlert, FileDown, FolderInput, History, MousePointerClick, Pencil, Plus, RotateCcw, Sparkles, Target, Trash2, Wand2, X } from 'lucide-react'
+import { ehrForClient } from '@shared/ehr'
 import type { Client, Goal, GoalStatus, TreatmentPlan } from '@shared/types'
 import { GOAL_STATUS_LABEL } from '@shared/types'
 import { formatDateUS, nextReviewDate, planReviewDue, todayISO } from '@shared/compliance'
@@ -20,6 +21,7 @@ export function PlanTab({ client }: { client: Client }) {
   const today = todayISO()
   const job = planJobs[client.id]
   const busy = !!job && !job.error
+  const ehr = ehrForClient(client, settings.ehrs)
 
   useEffect(() => markPlanSeen(client.id), [markPlanSeen, client.id, planDrafts[client.id]])
 
@@ -85,6 +87,22 @@ export function PlanTab({ client }: { client: Client }) {
           </Button>
         </div>
         <div className="plan-bar-group">
+          {ehr && (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<MousePointerClick size={13} />}
+              disabled={busy}
+              title={
+                settings.placeWithClaude
+                  ? `The Navigator starts a new plan in ${ehr.name} and fills it in from this one. Existing plans there are left alone.`
+                  : `Chart this plan into ${ehr.name}. Turn on the EHR Navigator in Settings to have Claude fill it in.`
+              }
+              onClick={() => navigate({ view: 'chart-plan', clientId: client.id, from: 'client' })}
+            >
+              Chart in {ehr.name}
+            </Button>
+          )}
           <Button size="sm" variant="ghost" icon={<Sparkles size={13} />} disabled={busy} onClick={() => setDrafting(true)}>
             Update with AI
           </Button>

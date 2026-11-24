@@ -4,6 +4,7 @@ import type { Letter, Letterhead, Signer } from './letter'
 import type { ClientDocument } from './documents'
 import type { ChatEvent, ChatSummary, ChatThread } from './chat'
 import type { Ehr, EhrLayout } from './ehr'
+import type { PlaceBatch, PlaceStatus } from './placement'
 
 // Data model shared by the main process and the renderer.
 // IDs are UUIDs and every record carries timestamps so a future iOS companion
@@ -75,6 +76,11 @@ export interface Client {
   planHistory: PlanSnapshot[]
   /** The EHR (Ehr.id from Settings) this client's notes go into, so charting can take the clinician straight there. */
   ehrId?: string
+  /** When the Navigator last charted this client's treatment plan into their EHR, and which EHR. */
+  planChartedAt?: string
+  planChartedIn?: string
+  /** Set when Echo drafts or updates the plan, cleared once it's charted (or dismissed): the plan waits in Charting until then. */
+  planChartDue?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -137,6 +143,9 @@ export interface Note {
   generatedAt: string | null
   finalizedAt: string | null
   copiedAt: string | null
+  /** When Claude pasted it into the EHR (not signed: that's left to the clinician), and the EHR's name. */
+  placedAt?: string | null
+  placedIn?: string
   source: 'desktop' | 'mobile'
   createdAt: string
   updatedAt: string
@@ -179,6 +188,10 @@ export interface Settings {
   ehrLayout?: EhrLayout
   /** Open the EHRs when charting starts. */
   ehrOpenOnChart?: boolean
+  /** Let Claude click through the EHR to each note's free-text box and paste the note there (computer use). Off by default. */
+  placeWithClaude?: boolean
+  /** Claude model for placing notes (PLACE_MODELS). */
+  placeModel?: string
 }
 
 /** Settings as the renderer sees them: the API key never leaves the main process. */
@@ -345,6 +358,24 @@ export interface EchoApi {
   openEhrs(): Promise<{ note?: string }>
   /** Brings one EHR (by Ehr.id) to the front in Chrome, ready to paste into. */
   showEhr(id: string): Promise<void>
+  /** Puts Echo's window back as it was before the EHRs were laid out beside it. */
+  restoreEcho(): Promise<void>
+  /** Whether Echo may capture the screen and control the pointer; with `prompt`, asks macOS for whichever is missing. */
+  placePermissions(prompt?: boolean): Promise<{ screen: boolean; accessibility: boolean }>
+  /** Starts Claude placing a finalized note in the client's EHR. Progress arrives through onPlace. */
+  placeNote(noteId: string): Promise<void>
+  /** Starts Claude charting the client's treatment plan as a new plan in their EHR. Progress arrives through onPlace. */
+  placePlan(clientId: string): Promise<void>
+  /** Places several finalized notes one after another, each in its own Chrome tab. Each run reports through onPlace, the batch through onPlaceBatch. */
+  placeNotes(noteIds: string[]): Promise<void>
+  /** Pauses the run after the current action. */
+  placePause(): void
+  /** Carries on, with the clinician's guidance (an answer if Claude asked) if they gave any. */
+  placeResume(guidance?: string): void
+  /** Stops the run, and the rest of the batch if there is one. */
+  placeStop(): void
+  onPlace(handler: (status: PlaceStatus) => void): () => void
+  onPlaceBatch(handler: (batch: PlaceBatch) => void): () => void
   /** Opens the live transcription stream; false when there's none to open (demo mode). Events arrive through onLive. */
   liveStart(): Promise<boolean>
   /** 16 kHz mono PCM16 audio for the live stream. */

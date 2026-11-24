@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeImage, nativeTheme, powerMonitor, protocol, session, shell, systemPreferences } from 'electron'
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, powerMonitor, protocol, session, shell, systemPreferences } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, extname, join, resolve, sep } from 'node:path'
@@ -18,7 +18,11 @@ import { readLegacyBackup } from './legacyBackup'
 import { Vault } from './vault'
 import { LinkServer, macName, newPairing, pairingUrl, type LinkRequest } from './link'
 import * as ai from './ai'
-import { openEhrs, showEhr } from './ehr'
+import { openEhrs, restoreEcho, showEhr } from './ehr'
+import { permissions as placePermissions } from './pointer'
+import { placeControls, placeNote, placeNotes, type PlaceContext } from './placer'
+import { batchCounts } from '../shared/placement'
+import type { Ehr } from '../shared/ehr'
 import * as local from './local'
 import { commitLive, sendLiveAudio, startLive, stopLive } from './live'
 import { onTranscriberStatus, prepareTranscriber, setVocabulary, stopTranscriber, transcribe, transcriberStatus } from './transcriber'
@@ -205,6 +209,7 @@ function buildMenu(): void {
           accelerator: 'Cmd+Ctrl+L',
           click: () => {
             if (vault.data.settings.lockEnabled) closeAllPresentations()
+            placeControls.stop()
             send('lock')
           }
         },
@@ -247,10 +252,12 @@ function buildMenu(): void {
     {
       label: 'View',
       submenu: [
-        { label: 'Queue', accelerator: 'Cmd+0', click: () => send('queue') },
+        { label: 'Clients', accelerator: 'Cmd+1', click: () => send('clients') },
+        { label: 'Charting', accelerator: 'Cmd+2', click: () => send('charting') },
+        { label: 'Library', accelerator: 'Cmd+3', click: () => send('library') },
+        { type: 'separator' },
         { label: 'Scratchpad', accelerator: 'Cmd+Shift+P', click: () => send('scratchpad') },
         { label: 'Ask Claude', accelerator: 'Cmd+Shift+A', click: () => send('ask') },
-        { label: 'Library', accelerator: 'Cmd+Shift+L', click: () => send('library') },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
@@ -331,7 +338,94 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('ehr:open', () => openEhrs(win, vault.data.settings.ehrs, vault.data.settings.ehrLayout))
-  ipcMain.handle('ehr:show', (_e, id: string) => showEhr(vault.data.settings.ehrs, id))
+  ipcMain.handle('ehr:restore', () => restoreEcho(win))
+  ipcMain.handle('ehr:show', async (_e, id: string) => {
+    await showEhr(vault.data.settings.ehrs, id)
+  })
+
+  ipcMain.handle('place:permissions', (_e, prompt?: boolean) => placePermissions(!!prompt))
+  const canNavigate = () => {
+    if (MOCK) throw new Error('The EHR Navigator isn’t available in demo mode.')
+    if (!vault.data.settings.placeWithClaude) throw new Error('Turn on the EHR Navigator in Settings › EHRs first.')
+  }
+  /** What a Navigator run needs: placing a note, or charting a client's treatment plan (no note). */
+  const placeContext = (client: Client, note?: Note): PlaceContext => ({
+    apiKey: requireKey(),
+    settings: vault.data.settings,
+    note,
+    client,
+    emit: (status) => win?.webContents.send('place', status),
+    updateEhr: (id: string, patch: Partial<Ehr>) => {
+      vault.data.settings.ehrs = (vault.data.settings.ehrs ?? []).map((e) => (e.id === id ? { ...e, ...patch } : e))
+      vault.save()
+      return vault.data.settings.ehrs
+    },
+    keepEchoBeside: (chrome) => {
+      if (!win || win.isDestroyed() || win.isMinimized()) return
+      const e = win.getBounds()
+      const overlaps = e.x < chrome.x + chrome.width && chrome.x < e.x + e.width && e.y < chrome.y + chrome.height && chrome.y < e.y + e.height
+      // In front, but not focused: Chrome keeps the keyboard. Never over the EHR, where it would take Claude's clicks.
+      if (!overlaps) win.showInactive()
+    }
+  })
+  const navigate = async (client: Client, note?: Note) => {
+    canNavigate()
+    await placeNote(placeContext(client, note))
+  }
+  ipcMain.handle('place:start', async (_e, noteId: string) => {
+    const note = vault.data.notes.find((n) => n.id === noteId)
+    const client = note && vault.data.clients.find((c) => c.id === note.clientId)
+    if (!note || !client) throw new Error('Note not found.')
+    await navigate(client, note)
+  })
+  ipcMain.handle('place:plan', async (_e, clientId: string) => {
+    const client = vault.data.clients.find((c) => c.id === clientId)
+    if (!client) throw new Error('Client not found.')
+    await navigate(client)
+  })
+  ipcMain.handle('place:batch', async (_e, noteIds: string[]) => {
+    canNavigate()
+    const ids = (Array.isArray(noteIds) ? noteIds : []).filter((id) => typeof id === 'string')
+    for (const id of ids) if (!vault.data.notes.some((n) => n.id === id)) throw new Error('Note not found.')
+    await placeNotes(
+      ids,
+      (id) => {
+        // Read afresh at each note's turn: it may have changed, and earlier runs may have saved a better route.
+        const note = vault.data.notes.find((n) => n.id === id)
+        const client = note && vault.data.clients.find((c) => c.id === note.clientId)
+        if (!note || !client) throw new Error('This note was deleted.')
+        return { ...placeContext(client, note), showBeside: (ehrId: string, newTab: boolean) => showEhr(vault.data.settings.ehrs, ehrId, newTab, { win, layout: vault.data.settings.ehrLayout }) }
+      },
+      (batch) => {
+        win?.webContents.send('place:batch', batch)
+        if (!batch.done) return
+        // The summary is in Echo: bring it up (without taking focus from whatever the clinician is doing) and bounce the Dock icon.
+        if (win && !win.isDestroyed()) {
+          if (win.isMinimized()) win.restore()
+          win.showInactive()
+        }
+        app.dock?.bounce('informational')
+        if (!Notification.isSupported()) return
+        // Counts only: a notification can show on the lock screen.
+        const { placed } = batchCounts(batch)
+        const total = batch.items.length
+        const left = total - placed
+        const n = new Notification({
+          title: placed === total ? `${total} note${total === 1 ? '' : 's'} ready to sign` : `${placed} of ${total} notes placed`,
+          body: placed ? `${placed === 1 ? 'It’s open in Chrome. Review and sign it there.' : 'Each is open in its own Chrome tab. Review and sign them there.'}${left ? ` ${left} still to chart.` : ''}` : 'None were placed. See Echo for why.',
+          silent: false
+        })
+        n.on('click', () => {
+          win?.show()
+          win?.focus()
+        })
+        n.show()
+      }
+    )
+  })
+  ipcMain.on('place:pause', () => placeControls.pause())
+  ipcMain.on('place:resume', (_e, guidance?: string) => placeControls.resume(typeof guidance === 'string' ? guidance : ''))
+  ipcMain.on('place:stop', () => placeControls.stop())
 
   ipcMain.handle('settings:api-key', (_e, key: string) => {
     vault.data.apiKey = key.trim()
@@ -1244,6 +1338,7 @@ const MIME: Record<string, string> = {
 function watchIdle(): void {
   const lockIfEnabled = () => {
     if (!vault.data.settings.lockEnabled) return
+    placeControls.stop()
     closeAllPresentations()
     send('lock')
   }
@@ -1319,6 +1414,7 @@ app.whenReady().then(() => {
 })
 
 app.on('before-quit', () => {
+  placeControls.stop()
   clearTemp()
   link?.stop()
   stopLive()

@@ -1,11 +1,26 @@
-import { useMemo } from 'react'
-import { CircleAlert, RotateCcw } from 'lucide-react'
+import { useEffect, useMemo } from 'react'
+import { CircleAlert, RotateCcw, X } from 'lucide-react'
 import { NOTE_TYPE_LABEL } from '@shared/types'
 import { buildPlanQueue, buildQueue } from '@shared/queue'
 import { useStore } from '../store'
 
+/** How much is going on in the background, for the title bar's Activity button: whether anything is writing, and how many items there are. */
+export function useActivity(): { writing: boolean; failed: boolean; count: number } {
+  const { notes, clients, jobs, unseen, planJobs, planDrafts } = useStore()
+  return useMemo(() => {
+    const q = buildQueue(notes, clients, jobs)
+    const p = buildPlanQueue(clients, planJobs, planDrafts)
+    const fresh = q.ready.filter((n) => unseen[n.id]).length + p.ready.filter((c) => planDrafts[c.id].unseen).length
+    return {
+      writing: q.writing.length + p.writing.length > 0,
+      failed: q.failed.length + p.failed.length > 0,
+      count: q.writing.length + p.writing.length + q.failed.length + p.failed.length + fresh
+    }
+  }, [notes, clients, jobs, unseen, planJobs, planDrafts])
+}
+
 /**
- * What Echo is doing in the background, at the foot of the sidebar: notes and treatment plans being written,
+ * What Echo is doing in the background, under Activity in the title bar: notes and treatment plans being written,
  * ones that failed, and finished ones that haven't been opened yet. Hidden when there's nothing to show.
  */
 export function ActivityPanel() {
@@ -76,5 +91,27 @@ export function ActivityPanel() {
       {fresh.map((n) => item(n.id, n.clientId, <span className="activity-new" aria-hidden />, `${NOTE_TYPE_LABEL[n.type]} ready`, 'fresh'))}
       {freshPlans.map((c) => item(c.id, c.id, <span className="activity-new" aria-hidden />, 'Treatment plan ready', 'fresh', undefined, true))}
     </section>
+  )
+}
+
+/**
+ * Activity as a tray at the bottom right. It opens by itself when something starts writing and stays
+ * while anything is writing; once all is done it can be closed, and the title bar's Activity button opens it again.
+ */
+export function ActivityTray({ open, setOpen }: { open: boolean; setOpen(open: boolean): void }) {
+  const activity = useActivity()
+  useEffect(() => {
+    if (activity.writing) setOpen(true)
+  }, [activity.writing, setOpen])
+  if (!activity.count || !(open || activity.writing)) return null
+  return (
+    <div className="activity-tray">
+      {!activity.writing && (
+        <button className="icon-btn activity-tray-close" onClick={() => setOpen(false)} title="Close" aria-label="Close activity">
+          <X size={13} />
+        </button>
+      )}
+      <ActivityPanel />
+    </div>
   )
 }

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { ChatEvent } from '../shared/chat'
 import type { LiveEvent } from '../shared/coach'
+import type { PlaceBatch, PlaceStatus } from '../shared/placement'
 import type { DocumentEvent, EchoApi, MobileLinkStatus, MobileMemo, TranscriberStatus, UpdateStatus } from '../shared/types'
 
 const api: EchoApi = {
@@ -29,6 +30,24 @@ const api: EchoApi = {
   installUpdate: () => ipcRenderer.send('update:install'),
   openEhrs: () => ipcRenderer.invoke('ehr:open'),
   showEhr: (id) => ipcRenderer.invoke('ehr:show', id),
+  restoreEcho: () => ipcRenderer.invoke('ehr:restore'),
+  placePermissions: (prompt) => ipcRenderer.invoke('place:permissions', prompt),
+  placeNote: (noteId) => ipcRenderer.invoke('place:start', noteId),
+  placePlan: (clientId) => ipcRenderer.invoke('place:plan', clientId),
+  placeNotes: (noteIds) => ipcRenderer.invoke('place:batch', noteIds),
+  placePause: () => ipcRenderer.send('place:pause'),
+  placeResume: (guidance) => ipcRenderer.send('place:resume', guidance),
+  placeStop: () => ipcRenderer.send('place:stop'),
+  onPlace: (handler) => {
+    const listener = (_e: Electron.IpcRendererEvent, status: PlaceStatus) => handler(status)
+    ipcRenderer.on('place', listener)
+    return () => ipcRenderer.removeListener('place', listener)
+  },
+  onPlaceBatch: (handler) => {
+    const listener = (_e: Electron.IpcRendererEvent, batch: PlaceBatch) => handler(batch)
+    ipcRenderer.on('place:batch', listener)
+    return () => ipcRenderer.removeListener('place:batch', listener)
+  },
   liveStart: () => ipcRenderer.invoke('live:start'),
   liveAudio: (pcm) => ipcRenderer.send('live:audio', pcm),
   liveCommit: () => ipcRenderer.send('live:commit'),

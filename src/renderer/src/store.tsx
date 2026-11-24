@@ -7,15 +7,21 @@ import { applyAiResult, applyAmendResult, applyContextRebuild, applyPlanResult, 
 import { buildQueue, chartNotes, extendChart, isModelFailure, type NoteJob, type PlanDraft, type PlanJob } from '@shared/queue'
 import { memoToNote, type ClientMatch } from '@shared/mobile'
 import { api, errorMessage, nowISO, uid } from './lib/util'
+import type { PlaceBatch, PlaceStatus } from '@shared/placement'
 
 export type ClientTab = 'notes' | 'plan' | 'documents' | 'scratchpad' | 'ask'
 
 export type Route =
-  | { view: 'queue' }
+  /** Clients, the home tab: the queue and every client. */
+  | { view: 'clients' }
+  /** Charting's own page: the notes not yet in the EHR, ready to start. */
+  | { view: 'charting' }
   | { view: 'client'; id: string; tab?: ClientTab }
   | { view: 'note'; id: string }
-  /** Charting: the batch of new notes, open on one of them. */
+  /** Charting, focused: the batch of new notes one at a time, with the EHRs beside Echo. */
   | { view: 'chart'; id?: string }
+  /** Charting a treatment plan, focused: the plan beside the EHRs while the Navigator fills in a new one. from is where to go back to. */
+  | { view: 'chart-plan'; clientId: string; from?: 'client' | 'charting' }
   | { view: 'document'; id: string }
   | { view: 'settings' }
   | { view: 'library' }
@@ -113,15 +119,25 @@ interface Store {
   /** The notes being charted, in order, or null when not charting. Charted notes stay so the clinician can go back. */
   charting: string[] | null
   /** Start going through the new notes (and open the EHRs, if Settings says so). */
-  startCharting(): void
+  /** Starts going through the notes to chart, open on the given one (or the first). */
+  startCharting(noteId?: string, options?: { openEhrs?: boolean }): void
   stopCharting(): void
   /** Open the EHRs in Chrome and arrange the windows. */
   openEhrs(): Promise<void>
   /** Bring one EHR to the front in Chrome. */
   showEhr(id: string): Promise<void>
-  /** The client list is hidden while writing a note unless the clinician brings it back. */
-  noteSidebar: boolean
-  setNoteSidebar(open: boolean): void
+  /** Claude placing a note in the EHR: the current or last run, or null. */
+  placement: PlaceStatus | null
+  /** Starts Claude placing a finalized note in the client's EHR. */
+  placeNote(noteId: string): Promise<void>
+  /** Starts Claude charting the client's treatment plan as a new plan in their EHR. */
+  placePlan(clientId: string): Promise<void>
+  clearPlacement(): void
+  /** Several notes being placed one after another, or the last batch's summary, or null. */
+  placeBatch: PlaceBatch | null
+  /** Places finalized notes one after another, each left open in its own Chrome tab to review and sign. */
+  placeNotes(noteIds: string[]): Promise<void>
+  clearPlaceBatch(): void
   on(command: string, handler: () => void): () => void
   emit(command: string): boolean
 }
@@ -151,13 +167,14 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
   const [inbox, setInbox] = useState(initial.inbox)
   const [documents, setDocuments] = useState(initial.documents)
   const [presenting, setPresenting] = useState<string[]>([])
-  const [route, setRouteState] = useState<Route>({ view: 'queue' })
+  const [route, setRouteState] = useState<Route>({ view: 'clients' })
   const [jobs, setJobsState] = useState<Record<string, NoteJob>>({})
   const [amends, setAmends] = useState<Record<string, Amended>>({})
   const [unseen, setUnseen] = useState<Record<string, true>>({})
   const [toasts, setToasts] = useState<Toast[]>([])
-  const [noteSidebar, setNoteSidebar] = useState(false)
   const [charting, setCharting] = useState<string[] | null>(null)
+  const [placement, setPlacement] = useState<PlaceStatus | null>(null)
+  const [placeBatch, setPlaceBatch] = useState<PlaceBatch | null>(null)
   const [viewing, setViewing] = useState<string | null>(null)
   const [rewrites, setRewrites] = useState<Record<string, Rewrites>>({})
   const [planJobs, setPlanJobsState] = useState<Record<string, PlanJob>>({})
@@ -258,6 +275,32 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
     [toast]
   )
 
+  // Claude placing a note: show its progress, keep what it learned about the EHR, and mark the note once it's pasted.
+  useEffect(
+    () =>
+      api().onPlace((status) => {
+        setPlacement(status)
+        if (status.ehrs) setSettings((s) => ({ ...s, ehrs: status.ehrs }))
+        // A plan the Navigator has filled in: the client's plan counts as charted from then.
+        const client = status.kind === 'plan' && status.placedAt ? clientsRef.current.find((c) => c.id === status.clientId) : undefined
+        if (client && client.planChartedAt !== status.placedAt) {
+          const next = { ...client, planChartedAt: status.placedAt!, planChartedIn: status.ehrName, planChartDue: false }
+          clientsRef.current = upsert(clientsRef.current, next)
+          setClients((cs) => upsert(cs, next))
+          void api().upsertClient(next)
+        }
+        const note = status.kind === 'note' && status.placedAt && notesRef.current.find((n) => n.id === status.noteId)
+        if (note && !note.placedAt) {
+          const next = { ...note, placedAt: status.placedAt!, placedIn: status.ehrName, copiedAt: note.copiedAt ?? status.placedAt!, updatedAt: nowISO() }
+          setNotes((ns) => upsert(ns, next))
+          void api().upsertNote(next)
+        }
+      }),
+    [setNotes, setClients]
+  )
+
+  useEffect(() => api().onPlaceBatch(setPlaceBatch), [])
+
   // Recordings arrive from the phone while Echo is open.
   const inboxRef = useRef(inbox)
   inboxRef.current = inbox
@@ -266,7 +309,7 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
       api().onInbox((next) => {
         const added = next.filter((m) => !inboxRef.current.some((x) => x.id === m.id)).length
         setInbox(next)
-        if (added) toast(added === 1 ? 'A recording arrived from your iPhone' : `${added} recordings arrived from your iPhone`, 'success', { label: 'Show', run: () => setRoute({ view: 'queue' }) })
+        if (added) toast(added === 1 ? 'A recording arrived from your iPhone' : `${added} recordings arrived from your iPhone`, 'success', { label: 'Show', run: () => setRoute({ view: 'clients' }) })
       }),
     [toast, setRoute]
   )
@@ -530,10 +573,8 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
       unseen,
       markSeen,
       toasts,
-      noteSidebar,
-      setNoteSidebar,
       charting,
-      startCharting() {
+      startCharting(noteId, options) {
         const list = chartNotes(buildQueue(notesRef.current, clientsRef.current, jobsRef.current))
         if (!list.length) {
           const writing = Object.values(jobsRef.current).some((j) => !j.error)
@@ -541,14 +582,47 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
           if (!writing) return
         }
         setCharting(list.map((n) => n.id))
-        setRoute({ view: 'chart', id: list[0]?.id })
-        if (settings.ehrOpenOnChart !== false && settings.ehrs?.length) void openEhrs()
+        setRoute({ view: 'chart', id: list.find((n) => n.id === noteId)?.id ?? list[0]?.id })
+        if (options?.openEhrs !== false && settings.ehrOpenOnChart !== false && settings.ehrs?.length) void openEhrs()
       },
       stopCharting() {
         setCharting(null)
+        // Charting is over: Echo's window goes back to its size from before the EHRs were laid out.
+        void api().restoreEcho()
       },
       openEhrs,
       showEhr,
+      placement,
+      async placeNote(noteId) {
+        try {
+          await api().placeNote(noteId)
+        } catch (err) {
+          toast(errorMessage(err), 'error')
+        }
+      },
+      async placePlan(clientId) {
+        try {
+          await api().placePlan(clientId)
+        } catch (err) {
+          toast(errorMessage(err), 'error')
+        }
+      },
+      clearPlacement() {
+        setPlacement(null)
+      },
+      placeBatch,
+      async placeNotes(noteIds) {
+        try {
+          setPlacement(null)
+          await api().placeNotes(noteIds)
+        } catch (err) {
+          toast(errorMessage(err), 'error')
+        }
+      },
+      clearPlaceBatch() {
+        setPlaceBatch(null)
+        setPlacement(null)
+      },
       viewing,
       viewResource: setViewing,
       on,
@@ -600,7 +674,7 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
         setNotes(() => state.notes)
         setInbox(state.inbox)
         setDocuments(state.documents)
-        setRoute({ view: 'queue' })
+        setRoute({ view: 'clients' })
       },
       saveClient,
       createClient(fields) {
@@ -679,7 +753,7 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
         void api().deleteNote(id)
       }
     }
-  }, [settings, clients, notes, inbox, documents, presenting, route, jobs, planJobs, planDrafts, amends, rewrites, unseen, toasts, noteSidebar, charting, openEhrs, showEhr, viewing, on, emit, toast, dismissToast, markSeen, setNotes, setClients, setRoute, setJob, setPlanJob])
+  }, [settings, clients, notes, inbox, documents, presenting, route, jobs, planJobs, planDrafts, amends, rewrites, unseen, toasts, charting, placement, placeBatch, openEhrs, showEhr, viewing, on, emit, toast, dismissToast, markSeen, setNotes, setClients, setRoute, setJob, setPlanJob])
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>
 }

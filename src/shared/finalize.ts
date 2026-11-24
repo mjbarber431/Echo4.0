@@ -163,6 +163,7 @@ export function applyPlanResult(client: Client, result: AiPlanResult, settings: 
       updatedAt: now
     },
     planHistory: snapshot(client, now, 'Before AI plan update'),
+    planChartDue: true,
     updatedAt: now
   }
 }

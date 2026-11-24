@@ -5,7 +5,7 @@ import { buildAmendMessages, buildNoteMessages, buildPlanMessages, NOTE_SCHEMA, 
 import { cleanBody, noteToHtml, noteToText, planToDocumentHtml } from '../src/shared/format'
 import { applyAiResult, applyAmendResult, finalizeClient } from '../src/shared/finalize'
 import { backfillDiagnoses, diagnosesInSections, noteDiagnoses } from '../src/shared/diagnosis'
-import { buildPlanQueue, buildQueue, isModelFailure, nextModelUp, queueCount, suggestModel } from '../src/shared/queue'
+import { buildPlanQueue, buildQueue, isModelFailure, nextModelUp, plansToChart, queueCount, suggestModel } from '../src/shared/queue'
 import { COVERAGE_MODEL, coverage, parseReply, type MessageReply } from '../src/main/ai'
 import { migrateApiKey, migrateSettings } from '../src/main/vault'
 import { applyLive, coachInput, coachItems, emptyLive, liveText, nextCoverage, takeDone, type LiveEvent } from '../src/shared/coach'
@@ -731,5 +731,16 @@ describe('live transcript', () => {
     ])
     expect(takeDone(t).texts).toEqual(['Half a'])
     expect(takeDone(t, true).texts).toEqual(['Half a', 'still going'])
+  })
+})
+
+describe('plansToChart', () => {
+  it('lists only plans Echo freshly drafted and not yet charted', () => {
+    const base = makeClient()
+    const older = { ...base, id: 'old', planChartDue: undefined }
+    const fresh = { ...base, id: 'fresh', name: 'Avery', planChartDue: true }
+    const charted = { ...base, id: 'charted', planChartDue: false, planChartedAt: '2026-11-01T00:00:00Z' }
+    const gone = { ...base, id: 'gone', status: 'discharged' as const, planChartDue: true }
+    expect(plansToChart([older, fresh, charted, gone]).map((c) => c.id)).toEqual(['fresh'])
   })
 })

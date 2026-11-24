@@ -1,12 +1,51 @@
 // The EHRs the clinician charts in, and how their windows are arranged beside Echo.
-// Echo only opens each EHR's own page in Chrome; it never reads from or types into it.
+// Echo opens each EHR's own page in Chrome. It reads from and clicks in an EHR only when the
+// clinician has turned on placing notes with Claude (placement.ts), while they watch.
+
+import type { ScriptStep } from './placement'
 
 export interface Ehr {
   id: string
   /** What the clinician calls it, e.g. "SimplePractice". */
   name: string
-  /** The page to open: usually the EHR's sign-in page or dashboard. Always https. */
+  /** The page to open: usually the EHR's sign-in page or dashboard. Always https (or this Mac, for testing). */
   url: string
+  /** The clinician's own instructions for placing notes here, one per line, word for word (client names removed). Claude never rewrites these. */
+  instructions?: string
+  /** The steps that got Claude to the note's free-text box last time, written by Claude after each run. Editable. */
+  route?: string
+  /** The route before Claude last replaced it, to put back if the new one turns out worse. */
+  previousRoute?: string
+  /** How many requests to Claude the saved route's run took. A route is replaced only by one that places the note in fewer, or fixes it. */
+  routeTurns?: number
+  /** How long the saved route's run took, in seconds, leaving out time waiting on the clinician. */
+  routeSeconds?: number
+  /** The steps of the route as Echo recorded them, for Echo to replay itself; Claude does only the steps marked choose. */
+  script?: ScriptStep[]
+  previousScript?: ScriptStep[]
+  /** The same, learned separately for charting treatment plans (the fields above are for notes). */
+  plan?: Learned
+}
+
+/** What the Navigator does in an EHR. Each task learns its own route there. */
+export type EhrTask = 'note' | 'plan'
+
+/** What one task has learned in an EHR: the clinician's instructions, Claude's route and Echo's recorded steps. */
+export type Learned = Pick<Ehr, 'instructions' | 'route' | 'previousRoute' | 'routeTurns' | 'routeSeconds' | 'script' | 'previousScript'>
+
+const LEARNED_KEYS = ['instructions', 'route', 'previousRoute', 'routeTurns', 'routeSeconds', 'script', 'previousScript'] as const
+
+/** What a task has learned in an EHR. Notes keep theirs on the EHR itself (where they were first), plans under plan. */
+export function learnedFor(ehr: Ehr, task: EhrTask): Learned {
+  if (task === 'plan') return { ...ehr.plan }
+  const out: Learned = {}
+  for (const k of LEARNED_KEYS) if (ehr[k] !== undefined) (out as Record<string, unknown>)[k] = ehr[k]
+  return out
+}
+
+/** The change to an EHR that stores what a task has learned. */
+export function learnedPatch(task: EhrTask, learned: Learned): Partial<Ehr> {
+  return task === 'plan' ? { plan: learned } : learned
 }
 
 /**
@@ -47,6 +86,8 @@ export interface Rect {
  * The URL to open for what the clinician typed, or null if it can't be an EHR page.
  * A bare address ("secure.simplepractice.com") gets https://. Plain http is refused: it would send the sign-in in the clear.
  */
+const LOOPBACK = new Set(['localhost', '127.0.0.1'])
+
 export function normalizeEhrUrl(input: string): string | null {
   const text = input.trim()
   if (!text) return null
@@ -57,7 +98,10 @@ export function normalizeEhrUrl(input: string): string | null {
   } catch {
     return null
   }
-  if (url.protocol !== 'https:' || !url.hostname.includes('.') || url.username || url.password) return null
+  if (url.username || url.password) return null
+  // A page served on this Mac (the fake EHR used to try out placing notes) never crosses the network.
+  if (url.protocol === 'http:' && LOOPBACK.has(url.hostname) && url.port) return url.toString()
+  if (url.protocol !== 'https:' || !url.hostname.includes('.')) return null
   return url.toString()
 }
 
@@ -123,4 +167,10 @@ export function layoutRects(count: number, area: Rect, layout: EhrLayout): Rect[
     const inRow = row === rows - 1 ? count - cols * (rows - 1) : cols
     return cell(i % cols, inRow, row, rows)
   })
+}
+
+/** The EHR a client is charted in: the one chosen for them, or the only one there is. */
+export function ehrForClient(client: { ehrId?: string }, saved: Ehr[] | undefined): Ehr | undefined {
+  const ehrs = usableEhrs(saved)
+  return (client.ehrId && ehrs.find((e) => e.id === client.ehrId)) || (ehrs.length === 1 ? ehrs[0] : undefined)
 }

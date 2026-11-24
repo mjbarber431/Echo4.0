@@ -2,14 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import type { Client } from '@shared/types'
 import { nextNoteType } from '@shared/mobile'
 import { useCommand, useStore } from './store'
-import { Sidebar } from './components/Sidebar'
+import { TopBar, tabOf } from './components/TopBar'
+import { ClientList } from './components/ClientList'
+import { ActivityTray } from './components/ActivityPanel'
 import { CommandPalette } from './components/CommandPalette'
 import { ClientModal, type ClientStart } from './components/ClientModal'
 import { BackupModal } from './components/BackupModal'
 import { LegacyImportModal } from './components/LegacyImportModal'
 import { LockScreen } from './components/LockScreen'
 import { Toasts } from './components/ui'
-import { QueueView } from './views/QueueView'
+import { ClientsView } from './views/ClientsView'
+import { ChartingView } from './views/ChartingView'
+import { PlanChartView } from './views/PlanChartView'
 import { ClientView } from './views/ClientView'
 import { NoteView } from './views/NoteView'
 import { ChartView } from './views/ChartView'
@@ -21,12 +25,13 @@ import { Onboarding } from './views/Onboarding'
 
 export function App() {
   const store = useStore()
-  const { route, navigate, settings, notes, createNote, emit, noteSidebar } = store
+  const { route, navigate, settings, notes, createNote, emit } = store
   const [palette, setPalette] = useState<'find' | 'note' | null>(null)
   const [newClient, setNewClient] = useState<{ name: string } | null>(null)
   const [backup, setBackup] = useState<'export' | 'import' | null>(null)
   const [legacyImport, setLegacyImport] = useState(false)
   const [locked, setLocked] = useState(settings.lockEnabled)
+  const [activityOpen, setActivityOpen] = useState(false)
 
   /** Resume a client's open draft rather than creating a duplicate. */
   const startNote = (client: Client) => {
@@ -52,8 +57,10 @@ export function App() {
     switch (command) {
       case 'settings':
         return navigate({ view: 'settings' })
-      case 'queue':
-        return navigate({ view: 'queue' })
+      case 'clients':
+        return navigate({ view: 'clients' })
+      case 'charting':
+        return navigate({ view: 'charting' })
       case 'new-client':
         return setNewClient({ name: '' })
       case 'find':
@@ -95,21 +102,36 @@ export function App() {
   if (!settings.onboarded) return <Onboarding />
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />
 
-  // Charting keeps to its own list; a tiled Echo needs the room.
-  const showSidebar = route.view !== 'chart' && (route.view !== 'note' || noteSidebar)
+  // Focused charting keeps to itself: Echo tiled beside the EHRs needs the room.
+  const focused = route.view === 'chart' || route.view === 'chart-plan'
 
   return (
-    <div className={showSidebar ? 'app' : 'app no-sidebar'}>
-      {showSidebar && <Sidebar onNewClient={() => setNewClient({ name: '' })} onFind={() => setPalette('find')} />}
+    <div className={focused ? 'app focused' : 'app'}>
+      {!focused && <TopBar onFind={() => setPalette('find')} activityOpen={activityOpen} setActivityOpen={setActivityOpen} />}
       <main className="main">
-        {route.view === 'queue' && <QueueView onNewClient={() => setNewClient({ name: '' })} />}
-        {route.view === 'client' && <ClientView key={route.id} clientId={route.id} tab={route.tab} />}
-        {route.view === 'note' && <NoteView noteId={route.id} />}
-        {route.view === 'chart' && <ChartView noteId={route.id} />}
-        {route.view === 'settings' && <SettingsView />}
-        {route.view === 'library' && <LibraryView />}
-        {route.view === 'document' && <DocumentView key={route.id} docId={route.id} />}
+        {tabOf(route) === 'clients' ? (
+          // The Clients tab keeps its client list on every page.
+          <div className="with-sidebar">
+            <ClientList onNewClient={() => setNewClient({ name: '' })} onFind={() => setPalette('find')} />
+            <div className="tab-main">
+              {route.view === 'clients' && <ClientsView onNewClient={() => setNewClient({ name: '' })} />}
+              {route.view === 'client' && <ClientView key={route.id} clientId={route.id} tab={route.tab} />}
+              {route.view === 'note' && <NoteView noteId={route.id} />}
+              {route.view === 'document' && <DocumentView key={route.id} docId={route.id} />}
+            </div>
+          </div>
+        ) : (
+          <>
+            {route.view === 'charting' && <ChartingView />}
+            {route.view === 'chart' && <ChartView noteId={route.id} />}
+            {route.view === 'chart-plan' && <PlanChartView key={route.clientId} clientId={route.clientId} from={route.from} />}
+            {route.view === 'settings' && <SettingsView />}
+            {route.view === 'library' && <LibraryView />}
+          </>
+        )}
       </main>
+      {/* Outside the Clients tab (whose client list shows Activity), it floats at the bottom right. */}
+      {!focused && tabOf(route) !== 'clients' && <ActivityTray open={activityOpen} setOpen={setActivityOpen} />}
       {palette && (
         <CommandPalette mode={palette} onClose={() => setPalette(null)} onNewClient={(name) => setNewClient({ name })} onStartNote={startNote} />
       )}

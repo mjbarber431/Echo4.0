@@ -9,6 +9,8 @@ release/
 .DS_Store
 native/transcriber/.build/
 native/transcriber/dist/
+native/pointer/.build/
+native/pointer/dist/
 
 # Private documents and images; never commit. The logo and signatures are
 # copied into release builds (extraResources) for letters.

@@ -153,6 +153,11 @@ export function chartNotes(q: Queue): Note[] {
   return [...q.ready, ...q.uncopied].sort((a, b) => (a.generatedAt ?? a.updatedAt).localeCompare(b.generatedAt ?? b.updatedAt))
 }
 
+/** Active clients whose plan Echo freshly drafted or updated and that hasn't been charted since, by name. Older plans never show here. */
+export function plansToChart(clients: Client[]): Client[] {
+  return clients.filter((c) => c.status === 'active' && c.planChartDue && !!c.plan?.goals.length).sort((a, b) => a.name.localeCompare(b.name))
+}
+
 /**
  * The charting list after notes have finished or been deleted: notes still in the record keep their place
  * (charted ones included, so going back works), and notes that became ready since are added at the end.

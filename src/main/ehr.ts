@@ -9,8 +9,9 @@ import { DEFAULT_EHR_LAYOUT, layoutRects, siteOf, usableEhrs, usesTabs, type Ehr
 //
 // Chrome is driven with Apple Events (JavaScript for Automation through osascript): make a window or tab,
 // point it at the EHR's page, move it, pick a tab. macOS asks once whether Echo may control Chrome. Echo
-// never runs script inside the EHR's pages, reads them or types into them: signing in is left to Chrome's
-// own password manager, and every note is pasted, checked and signed by the clinician.
+// never runs script inside the EHR's pages: signing in is left to Chrome's own password manager, and every
+// note is checked and signed by the clinician. Only when placing notes with Claude is turned on does Echo
+// look at the EHR's window and click in it (placer.ts), and then only while the clinician watches.
 
 const CHROME_APP = ['/Applications/Google Chrome.app', join(homedir(), 'Applications', 'Google Chrome.app')]
 
@@ -18,11 +19,23 @@ const CHROME_APP = ['/Applications/Google Chrome.app', join(homedir(), 'Applicat
  * Runs in osascript. argv[0] is JSON, one of:
  * - { mode: 'windows', ehrs: [{ url, site, bounds? }] }: a window per EHR
  * - { mode: 'tabs', ehrs: [{ url, site }], bounds?, window? }: one window with a tab per EHR
- * - { mode: 'show', ehr: { url, site }, window? }: bring that EHR's tab to the front (opening it if it's gone)
+ * - { mode: 'show', ehr: { url, site }, window?, newTab?, bounds? }: bring that EHR's tab to the front (opening it if it's gone);
+ *   with newTab, open a new tab of it beside the others instead, leaving the ones already open as they are; with bounds, move its window there
  * An EHR already open in a tab (on any page of its site) is reused rather than opened again.
- * Returns { window }: the id of the window holding the EHRs (tabs and show), so the next call looks there first.
+ * Returns { window, bounds }: the id of the window holding the EHRs (tabs and show), so the next call looks there
+ * first, and where it is on screen.
  */
 const CHROME_SCRIPT = `
+ObjC.import('AppKit')
+
+function activateMainWindowOnly(chrome) {
+  if (chrome.frontmost()) return
+  var apps = $.NSRunningApplication.runningApplicationsWithBundleIdentifier('com.google.Chrome')
+  // Without NSApplicationActivateAllWindows, only the main and key windows come forward.
+  if (apps.count > 0) apps.objectAtIndex(0).activateWithOptions($.NSApplicationActivateIgnoringOtherApps)
+  else chrome.activate()
+}
+
 function run(argv) {
   var cfg = JSON.parse(argv[0])
   var chrome = Application('Google Chrome')
@@ -99,11 +112,12 @@ function run(argv) {
       windows().forEach(function (w) { if (tabIn(w, cfg.ehr.site) && (!win || !tabIn(win, cfg.ehr.site))) win = w })
     }
     var fresh = !win
-    if (fresh) win = chrome.Window().make()
+    // Made where it's going, so it doesn't open over Echo first and then jump aside.
+    if (fresh) win = chrome.Window(cfg.bounds ? { bounds: cfg.bounds } : {}).make()
     var list = cfg.mode === 'tabs' ? cfg.ehrs : [cfg.ehr]
     var first = 0
     list.forEach(function (ehr, i) {
-      var t = tabIn(win, ehr.site)
+      var t = cfg.newTab ? 0 : tabIn(win, ehr.site)
       if (!t) {
         if (fresh && i === 0 && isBlank(win)) { win.activeTab.url = ehr.url; t = 1 }
         else t = addTab(win, ehr.url)
@@ -115,10 +129,14 @@ function run(argv) {
     win.index = 1
     keep.push(win.id())
     result.window = win.id()
+    result.bounds = win.bounds()
   }
 
   windows().forEach(function (w) { if (blank.indexOf(w.id()) >= 0 && keep.indexOf(w.id()) < 0) w.close() })
-  chrome.activate()
+  // Scripted activate brings every Chrome window forward, so the clinician's other Chrome windows would land on top
+  // of Echo. To show one EHR, Chrome comes forward with just its main window: the EHR's, put first above.
+  if (cfg.mode === 'show') activateMainWindowOnly(chrome)
+  else chrome.activate()
   return JSON.stringify(result)
 }
 `
@@ -126,7 +144,7 @@ function run(argv) {
 type ChromeConfig =
   | { mode: 'windows'; ehrs: { url: string; site: string; bounds?: Rect }[] }
   | { mode: 'tabs'; ehrs: { url: string; site: string }[]; bounds?: Rect; window?: number }
-  | { mode: 'show'; ehr: { url: string; site: string }; window?: number }
+  | { mode: 'show'; ehr: { url: string; site: string }; window?: number; newTab?: boolean; bounds?: Rect }
 
 /** The Chrome window the EHRs were last opened in, so switching looks there first. */
 let ehrWindow: number | undefined
@@ -135,7 +153,16 @@ function chromeInstalled(): boolean {
   return CHROME_APP.some((path) => existsSync(path))
 }
 
-function runChrome(config: ChromeConfig): Promise<{ window?: number }> {
+/** The Chrome script running now, if any. Scripts run one at a time: two at once trip over each other's windows ("Can't get object", -1728). */
+let chromeBusy: Promise<unknown> = Promise.resolve()
+
+function runChrome(config: ChromeConfig): Promise<{ window?: number; bounds?: Rect }> {
+  const next = chromeBusy.then(() => runChromeNow(config))
+  chromeBusy = next.catch(() => {})
+  return next
+}
+
+function runChromeNow(config: ChromeConfig): Promise<{ window?: number; bounds?: Rect }> {
   return new Promise((resolve, reject) => {
     execFile('osascript', ['-l', 'JavaScript', '-e', CHROME_SCRIPT, JSON.stringify(config)], { timeout: 30_000 }, (err, stdout, stderr) => {
       if (!err) {
@@ -155,8 +182,26 @@ function runChrome(config: ChromeConfig): Promise<{ window?: number }> {
   })
 }
 
+/** Echo's window as it was before the EHRs were laid out beside it, to put back when charting ends. */
+let echoBefore: { bounds: Rect; minimum: [number, number]; maximized: boolean } | null = null
+
+/** Puts Echo's window back the way it was before the EHRs were laid out beside it. The EHRs stay open. */
+export function restoreEcho(win: BrowserWindow | null): void {
+  const before = echoBefore
+  echoBefore = null
+  if (!before || !win || win.isDestroyed()) return
+  win.setMinimumSize(...before.minimum)
+  win.setBounds(before.bounds, true)
+  if (before.maximized) win.maximize()
+}
+
 /** Moves Echo's window, first leaving full screen (which would otherwise ignore the new bounds). */
 async function placeEcho(win: BrowserWindow, rect: Rect): Promise<void> {
+  // Only the first layout of a charting session is remembered, so laying out again doesn't lose it.
+  if (!echoBefore) {
+    const [w, h] = win.getMinimumSize()
+    echoBefore = { bounds: win.isFullScreen() || win.isMaximized() ? win.getNormalBounds() : win.getBounds(), minimum: [w, h], maximized: win.isMaximized() }
+  }
   if (win.isFullScreen()) {
     await new Promise<void>((resolve) => {
       const timer = setTimeout(resolve, 1500)
@@ -175,7 +220,15 @@ async function placeEcho(win: BrowserWindow, rect: Rect): Promise<void> {
   win.setBounds(rect, true)
 }
 
-export async function openEhrs(win: BrowserWindow | null, saved: Ehr[] | undefined, layout: EhrLayout = DEFAULT_EHR_LAYOUT): Promise<{ note?: string }> {
+/** Laying the EHRs out already under way: a second request while it runs (a double click, a view opening twice) shares it. */
+let opening: Promise<{ note?: string }> | null = null
+
+export function openEhrs(win: BrowserWindow | null, saved: Ehr[] | undefined, layout: EhrLayout = DEFAULT_EHR_LAYOUT): Promise<{ note?: string }> {
+  if (!opening) opening = openEhrsNow(win, saved, layout).finally(() => (opening = null))
+  return opening
+}
+
+async function openEhrsNow(win: BrowserWindow | null, saved: Ehr[] | undefined, layout: EhrLayout): Promise<{ note?: string }> {
   const ehrs = usableEhrs(saved)
   if (!ehrs.length) throw new Error('Add your EHRs in Settings › EHRs first.')
 
@@ -204,14 +257,23 @@ export async function openEhrs(win: BrowserWindow | null, saved: Ehr[] | undefin
   return {}
 }
 
-/** Brings one EHR's tab to the front in Chrome, opening it if it isn't open, ready for the clinician to paste. */
-export async function showEhr(saved: Ehr[] | undefined, id: string): Promise<void> {
+/**
+ * Brings one EHR's tab to the front in Chrome, opening it if it isn't open, ready for the clinician to paste.
+ * Resolves with where Chrome's window is on screen (undefined without Chrome).
+ */
+export async function showEhr(saved: Ehr[] | undefined, id: string, newTab = false, beside?: { win: BrowserWindow | null; layout?: EhrLayout }): Promise<Rect | undefined> {
   const ehr = usableEhrs(saved).find((e) => e.id === id)
   if (!ehr) throw new Error('That EHR isn’t in Settings › EHRs any more.')
   if (!chromeInstalled()) {
     await shell.openExternal(ehr.url)
-    return
+    return undefined
   }
-  const { window } = await runChrome({ mode: 'show', ehr: { url: ehr.url, site: siteOf(ehr.url) }, window: ehrWindow })
+  // Beside: just Echo and this EHR's window, laid out as charting lays them out, both in front.
+  const win = beside?.win && !beside.win.isDestroyed() ? beside.win : null
+  const layout = beside?.layout ?? DEFAULT_EHR_LAYOUT
+  const rects = win ? layoutRects(2, screen.getDisplayMatching(win.getBounds()).workArea, layout) : []
+  if (win && rects.length === 2) await placeEcho(win, rects[0])
+  const { window, bounds } = await runChrome({ mode: 'show', ehr: { url: ehr.url, site: siteOf(ehr.url) }, window: ehrWindow, newTab, ...(rects.length === 2 ? { bounds: rects[1] } : {}) })
   ehrWindow = window
+  return bounds
 }

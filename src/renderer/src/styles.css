@@ -717,29 +717,179 @@ input[type='checkbox'] {
    ========================================================================== */
 .app {
   display: grid;
-  grid-template-columns: 240px 1fr;
-  /* One window-height row: a tall view scrolls inside itself instead of stretching the window. */
+  grid-template-columns: minmax(0, 1fr);
+  /* The title bar, then one window-height row: a tall view scrolls inside itself instead of stretching the window. */
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+}
+.app.focused {
+  grid-template-rows: minmax(0, 1fr);
+}
+/* Focused charting has no title bar: its own header clears the inset traffic lights. */
+.app.focused .page-head {
+  padding-left: 84px;
+}
+
+/* The title bar: the three main tabs, then find, activity, updates and Settings. */
+.topbar {
+  height: 46px;
+  display: grid;
+  /* Left and right share the leftover room, so the tabs sit dead centre in the window. */
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  /* Clear the inset traffic lights. */
+  padding: 0 14px 0 84px;
+  background: var(--sidebar);
+  border-bottom: 1px solid var(--border);
+}
+.topbar-left {
+  min-width: 0;
+}
+/* A segmented control: equal-width tabs with one highlight that slides to the open tab. */
+.topbar-tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 112px);
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.topbar-tabs-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: 112px;
+  border-radius: 7px;
+  background: var(--surface);
+  box-shadow: 0 0 0 0.5px var(--border-strong), 0 1px 3px rgba(20, 30, 25, 0.1);
+  transform: translateX(calc(var(--tab-index, 0) * 100%));
+  transition: transform 0.22s cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+.topbar-tabs button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.15s;
+}
+.topbar-tabs button:hover:not(.on) {
+  color: var(--text);
+}
+.topbar-tabs button.on {
+  color: var(--text);
+  font-weight: 600;
+}
+.topbar-tabs button.on svg {
+  color: var(--accent);
+}
+.topbar-tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.topbar-tabs .side-count {
+  min-width: 18px;
+  text-align: center;
+  line-height: 16px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .topbar-tabs-thumb {
+    transition: none;
+  }
+}
+.topbar-right {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.topbar-right .icon-btn.on {
+  color: var(--accent);
+}
+.topbar-search,
+.topbar-activity {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+.topbar-search kbd {
+  font: inherit;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.topbar-activity {
+  color: var(--text-2);
+}
+.topbar-activity.failed {
+  border-color: var(--error);
+}
+/* In the title bar, an update is one compact line. */
+.topbar .update-badge {
+  margin: 0;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.topbar .update-badge small {
+  display: none;
+}
+.side-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 8px 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.side-toggle {
+  border: none;
+  background: none;
+  justify-content: flex-start;
+  gap: 4px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* The Clients tab: the client list on the left, on every page in the tab. */
+.with-sidebar {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   height: 100%;
 }
-.app.no-sidebar {
-  grid-template-columns: 1fr;
-}
-/* Clear the inset traffic lights when there's no sidebar beneath them. */
-.app.no-sidebar .page-head {
-  padding-left: 84px;
+.with-sidebar > .tab-main {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 .sidebar {
   background: var(--sidebar);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 0 10px 10px;
+  padding: 10px 10px 10px;
   min-height: 0;
-}
-.sidebar-top {
-  height: 46px;
-  flex: none;
 }
 .side-search {
   display: flex;
@@ -756,9 +906,6 @@ input[type='checkbox'] {
 .side-search span {
   flex: 1;
   text-align: left;
-}
-.side-nav {
-  margin-bottom: 8px;
 }
 .side-item {
   display: flex;
@@ -795,25 +942,6 @@ input[type='checkbox'] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.side-section {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 8px 4px;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.side-toggle {
-  border: none;
-  background: none;
-  justify-content: flex-start;
-  gap: 4px;
-  width: 100%;
-  margin-top: 8px;
-}
 .side-list {
   flex: 1;
   overflow: auto;
@@ -830,8 +958,97 @@ input[type='checkbox'] {
   color: var(--text-2);
   margin: 4px 0;
 }
-.side-settings {
-  margin-top: 8px;
+
+/* Activity: a tray at the bottom right, there for as long as anything is writing. */
+.activity-tray {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 290px;
+  max-height: 50vh;
+  overflow: auto;
+  z-index: 90;
+  padding: 6px 8px 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  animation: fade 0.2s ease;
+}
+.activity-tray .activity {
+  margin: 0;
+  padding: 2px 0;
+  border: none;
+  max-height: none;
+}
+.activity-tray-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+
+/* Clients and Charting: their pages under the title bar. */
+.home-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px 40px 60px;
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.queue-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.chart-start-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.chart-start-card h2 {
+  font-size: 15px;
+  margin-bottom: 2px;
+}
+/* Charting a treatment plan: the plan in its pieces, as the Navigator sees it. */
+.plan-pieces .list-row {
+  cursor: default;
+  align-items: flex-start;
+}
+.plan-piece-label {
+  width: 150px;
+  flex: none;
+}
+@media (max-width: 760px) {
+  .plan-piece-label {
+    width: 100px;
+  }
+}
+@media (max-width: 640px) {
+  .home-body {
+    padding: 16px;
+  }
+  .topbar-search span,
+  .topbar-search kbd,
+  .topbar-activity span:not(.side-count):not(.activity-orb):not(.activity-new),
+  .topbar-tabs button span:not(.side-count) {
+    display: none;
+  }
+  .topbar-tabs {
+    grid-template-columns: repeat(3, 52px);
+  }
+  .topbar-tabs-thumb {
+    width: 52px;
+  }
 }
 .main {
   background: var(--bg);
@@ -2821,6 +3038,9 @@ input[type='checkbox'] {
 .settings-group h2 {
   font-size: 14px;
 }
+.settings-tabs {
+  padding: 0 32px;
+}
 .settings-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3334,7 +3554,7 @@ input[type='checkbox'] {
   cursor: pointer;
 }
 
-/* Activity: background work at the foot of the sidebar */
+/* Activity: background work, at the foot of the Clients tab's client list */
 .activity {
   margin-top: 8px;
   padding: 8px 0 2px;
@@ -3580,7 +3800,7 @@ input[type='checkbox'] {
   transform-origin: top left;
 }
 
-/* Update downloading / ready, above Settings in the sidebar. */
+/* Update downloading / ready, in the title bar. */
 .update-badge {
   display: flex;
   align-items: center;
@@ -4830,7 +5050,7 @@ input[type='checkbox'] {
   gap: 8px;
   padding-left: 14px;
 }
-.app.no-sidebar .doc-head {
+.app.focused .doc-head {
   padding-left: 84px;
 }
 .doc-title {
@@ -5479,6 +5699,55 @@ button.chart-item:hover {
   margin: 4px 0 0;
   padding-left: 18px;
 }
+/* Claude placing the note in the EHR. */
+.place-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+.place-panel.paused,
+.place-panel.asking,
+.place-panel.failed,
+.place-panel.stopped {
+  background: var(--warn-soft);
+}
+.place-panel.placed {
+  background: var(--ok-soft);
+}
+.place-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.place-message,
+.place-question {
+  margin: 0;
+}
+.place-question {
+  font-weight: 600;
+}
+.place-guide {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.place-guide textarea {
+  flex: 1;
+  resize: vertical;
+  min-height: 44px;
+}
+.place-log {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.place-log li {
+  overflow-wrap: anywhere;
+}
 .chart-doc {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -5662,6 +5931,21 @@ button.chart-item:hover {
   .ehr-pill {
     max-width: 110px;
   }
+  .chart .page-head {
+    padding: 0 12px 0 20px;
+    gap: 8px;
+  }
+  .chart-actions {
+    gap: 4px;
+    padding: 10px 12px;
+  }
+  .wide-only,
+  .icon-when-narrow > span {
+    display: none;
+  }
+  .chart-batch {
+    padding: 16px;
+  }
 }
 
 .ehr-preview > span.tabs {
@@ -5695,4 +5979,210 @@ button.chart-item:hover {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Settings › EHRs: placing notes with Claude. */
+.place-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.place-ehr {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.place-plan summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.place-plan[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.place-ehr textarea {
+  width: 100%;
+  resize: vertical;
+  font-size: 13px;
+}
+
+/* Charting: several notes placed one after another, then what came of each. */
+.place-batch {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.place-batch-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+}
+.place-batch-head > .grow {
+  min-width: 200px;
+}
+.place-batch-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.place-batch-head h2 {
+  font-size: 15px;
+  margin-bottom: 2px;
+}
+.place-batch .list-card {
+  box-shadow: none;
+}
+.place-batch-row,
+.place-batch-row:hover {
+  cursor: default;
+  background: transparent;
+}
+.place-batch-row > .grow {
+  min-width: 0;
+}
+.place-batch-row.waiting {
+  opacity: 0.65;
+}
+.place-batch-status {
+  display: block;
+  color: var(--text-2);
+  font-size: 12px;
+  margin-top: 1px;
+  overflow-wrap: anywhere;
+}
+.place-batch-row.failed .place-batch-status,
+.place-batch-row.stopped .place-batch-status {
+  color: var(--warn);
+}
+/* Live steps stay on one line so the rows don't jump; Claude's reason for stopping shows two lines until clicked. */
+.place-batch-row.running .place-batch-status,
+.place-batch-row.starting .place-batch-status {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.place-batch-status.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+button.place-batch-more {
+  all: unset;
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 12px;
+  margin-top: 2px;
+}
+button.place-batch-more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Charting beside the EHRs: the pills give way (shrinking, then scrolling) so Exit always fits. */
+.chart .page-title {
+  flex: none;
+}
+.chart-head-actions {
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+}
+.chart-head-actions > :not(.ehr-pills) {
+  flex: none;
+}
+.ehr-pills {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ehr-pills::-webkit-scrollbar {
+  display: none;
+}
+.ehr-pills .ehr-pill {
+  flex: 0 1 auto;
+  min-width: 44px;
+}
+/* The client's own EHR keeps its name; the others give way. */
+.ehr-pills .ehr-pill.mine {
+  flex: none;
+}
+.chart-actions {
+  flex-wrap: wrap;
+}
+.chart-actions .btn {
+  flex: none;
+}
+
+/* Charting: handing every note to the Navigator, at the top of the list. */
+.chart-navigate {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  text-align: left;
+}
+.chart-navigate > svg {
+  flex: none;
+  margin-top: 2px;
+}
+.chart-navigate b {
+  display: block;
+  font-size: 13px;
+}
+.chart-navigate small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-2);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.chart-navigate:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.chart-navigate:hover:not(:disabled) small {
+  color: inherit;
+  opacity: 0.85;
+}
+.chart-navigate:disabled {
+  opacity: 0.5;
+}
+.chart-item:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.chart-batch {
+  padding: 20px;
+}
+.chart-start-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.chart-start-card {
+  flex-wrap: wrap;
+}
+.chart-start-card > .grow {
+  min-width: 240px;
 }

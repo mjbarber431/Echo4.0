@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { AlertTriangle, ArrowLeft, Check, CheckCircle2, ChevronDown, Circle, CircleAlert, Copy, Inbox, Loader2, Lock, Mic, PanelLeftClose, PanelLeftOpen, PencilLine, RotateCcw, Sparkles, Trash2, Wand2, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Check, CheckCircle2, ChevronDown, Circle, CircleAlert, Copy, Inbox, Loader2, Lock, Mic, PencilLine, RotateCcw, Sparkles, Trash2, Wand2, X } from 'lucide-react'
 import type { AiSuggestions, Client, Note, NoteSection } from '@shared/types'
 import { GOAL_STATUS_LABEL, modelLabel, NOTE_TYPE_LABEL } from '@shared/types'
 import { auditChecks, CPT_OPTIONS, isTelehealth, scanRisk, todayISO, type Check as AuditCheck } from '@shared/compliance'
@@ -43,7 +43,7 @@ const FOLLOW_UP_CHECKS = new Set(['goals', 'risk'])
 
 function NoteEditor({ note, client }: { note: Note; client: Client }) {
   const store = useStore()
-  const { settings, saveNote, navigate, toast, noteSidebar, setNoteSidebar } = store
+  const { settings, saveNote, navigate, toast } = store
   // Writing runs in the store, so the clinician can leave and come back while it finishes.
   const job = store.jobs[note.id]
   const busy: Busy = job && !job.error ? job : null
@@ -200,14 +200,6 @@ function NoteEditor({ note, client }: { note: Note; client: Client }) {
   return (
     <div className="page">
       <header className="page-head drag">
-        <button
-          className="icon-btn"
-          onClick={() => setNoteSidebar(!noteSidebar)}
-          title={noteSidebar ? 'Hide client list' : 'Show client list'}
-          aria-label={noteSidebar ? 'Hide client list' : 'Show client list'}
-        >
-          {noteSidebar ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
-        </button>
         <button className="crumb no-drag" onClick={backToClient}>
           <ArrowLeft size={15} />
           <Avatar id={client.id} name={client.name} size={22} />
@@ -217,7 +209,7 @@ function NoteEditor({ note, client }: { note: Note; client: Client }) {
         <span className="crumb-current">{NOTE_TYPE_LABEL[note.type]}</span>
         <SessionMeta note={note} onChange={(session) => update({ session })} disabled={final || !!busy} />
         <div className="head-actions no-drag">
-          {!noteSidebar && <QueuePill noteId={note.id} />}
+          <QueuePill noteId={note.id} />
           <span className={`chip ${final ? 'chip-ok' : 'chip-draft'}`}>{final ? 'Finalized' : 'Draft'}</span>
           {!final && (
             <button
@@ -757,7 +749,7 @@ function WritingStatus({ busy, note, generated }: { busy: NonNullable<Busy>; not
           <Button size="sm" icon={<Mic size={13} />} onClick={() => emit('next-note')} title="⌘N">
             Next note
           </Button>
-          <Button size="sm" variant="ghost" icon={<Inbox size={13} />} onClick={() => navigate({ view: 'queue' })}>
+          <Button size="sm" variant="ghost" icon={<Inbox size={13} />} onClick={() => navigate({ view: 'clients' })}>
             Queue
           </Button>
         </div>
@@ -816,7 +808,7 @@ function QueuePill({ noteId }: { noteId: string }) {
   if (!writing && !ready && !failed) return null
   const parts = [writing && `${writing} writing`, ready && `${ready} ready`, failed && `${failed} failed`].filter(Boolean)
   return (
-    <button className={`queue-pill ${writing ? 'busy' : ''} ${failed ? 'failed' : ''}`} onClick={() => navigate({ view: 'queue' })} title="Open the queue">
+    <button className={`queue-pill ${writing ? 'busy' : ''} ${failed ? 'failed' : ''}`} onClick={() => navigate({ view: 'clients' })} title="Open the queue">
       {writing > 0 && <span className="queue-pill-orb" aria-hidden />}
       {parts.join(' · ')}
     </button>

@@ -115,7 +115,7 @@ export function ClientView({ clientId, tab = 'notes' }: { clientId: string; tab?
                     setMenu(false)
                     if (window.confirm(`Permanently delete ${client.name} and all of their notes? This cannot be undone.`)) {
                       deleteClient(client.id)
-                      navigate({ view: 'queue' })
+                      navigate({ view: 'clients' })
                     }
                   }}
                 >

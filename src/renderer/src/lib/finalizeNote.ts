@@ -22,12 +22,19 @@ export async function copyNote(store: Store, note: Note, client: Client): Promis
 export async function finalizeNote(store: Store, note: Note, client: Client, andCopy: boolean): Promise<Note | null> {
   const blocking = auditChecks(note, client).filter((c) => c.level === 'error')
   if (blocking.length && !window.confirm(`Audit check: ${blocking.map((c) => c.label).join('; ')}.\n\nFinalize anyway?`)) return null
+  const { note: next } = await finalizeNow(store, note, client)
+  return andCopy ? copyNote(store, next, client) : next
+}
+
+/** Finalizes without asking (the clinician has already been asked). Returns the saved note and the client as it now is. */
+export async function finalizeNow(store: Store, note: Note, client: Client): Promise<{ note: Note; client: Client }> {
   const now = nowISO()
   store.dismissJob(note.id)
-  if (!note.finalizedAt) store.saveClient(finalizeClient(note, client, store.settings, uid, now))
+  const updated = note.finalizedAt ? client : finalizeClient(note, client, store.settings, uid, now)
+  if (updated !== client) store.saveClient(updated)
   const next: Note = { ...note, status: 'final', finalizedAt: note.finalizedAt ?? now }
   await store.saveNote(next)
-  return andCopy ? copyNote(store, next, client) : next
+  return { note: next, client: updated }
 }
 
 export const finalizedMessage = (note: Note) =>

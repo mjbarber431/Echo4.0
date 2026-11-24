@@ -1,22 +1,34 @@
 import { useMemo, type ReactNode } from 'react'
 import { InboxRow } from '../components/InboxRow'
-import { CalendarClock, CheckCircle2, CircleAlert, ClipboardList, ExternalLink, FilePen, FileText, RotateCcw, Smartphone, Target, UserPlus } from 'lucide-react'
+import { CalendarClock, CheckCircle2, CircleAlert, FilePen, FileText, RotateCcw, Smartphone, Target } from 'lucide-react'
 import type { Client, Note } from '@shared/types'
 import { NOTE_TYPE_LABEL } from '@shared/types'
 import { planReviewDue, todayISO } from '@shared/compliance'
 import { noteToHtml, noteToText } from '@shared/format'
-import { buildPlanQueue, buildQueue, chartNotes, chartStatus } from '@shared/queue'
-import { longDate, relativeDay } from '../lib/util'
+import { buildPlanQueue, buildQueue } from '@shared/queue'
+import { relativeDay } from '../lib/util'
 import { useStore } from '../store'
 import { Avatar, Button, CopyButton, Kbd } from '../components/ui'
 
+/** How many things are waiting in the queue, for its heading. */
+export function useQueueTotal(): number {
+  const { clients, notes, inbox, jobs, planJobs, planDrafts } = useStore()
+  const today = todayISO()
+  return useMemo(() => {
+    const q = buildQueue(notes, clients, jobs, today)
+    const p = buildPlanQueue(clients, planJobs, planDrafts)
+    const reviews = clients.filter((c) => c.status === 'active' && planReviewDue(c, today) && !planJobs[c.id] && !planDrafts[c.id])
+    return inbox.length + q.failed.length + q.ready.length + q.uncopied.length + q.unwritten.length + reviews.length + p.failed.length + p.ready.length
+  }, [notes, clients, jobs, inbox, planJobs, planDrafts, today])
+}
+
 /**
- * Home. Everything across all clients that still needs the clinician: drafts to review,
- * finalized notes not yet in the EHR, unwritten drafts and plan reviews due. Notes being
- * written show in the sidebar's Activity panel, and new notes start from ⌘N.
+ * The queue, the Clients tab's home: everything across all clients that still needs the clinician:
+ * recordings from the iPhone, drafts to review, finalized notes not yet in the EHR, unwritten drafts
+ * and plan reviews due. Notes being written show under Activity in the title bar.
  */
-export function QueueView({ onNewClient }: { onNewClient(): void }) {
-  const { clients, notes, inbox, jobs, unseen, planJobs, planDrafts, settings, navigate, saveNote, retryJob, retryPlan, charting, startCharting, stopCharting, openEhrs } = useStore()
+export function QueueSections() {
+  const { clients, notes, inbox, jobs, unseen, planJobs, planDrafts, settings, navigate, saveNote, retryJob, retryPlan } = useStore()
   const today = todayISO()
   const byId = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients])
   const q = useMemo(() => buildQueue(notes, clients, jobs, today), [notes, clients, jobs, today])
@@ -24,10 +36,6 @@ export function QueueView({ onNewClient }: { onNewClient(): void }) {
   // A plan being drafted (or waiting for review) isn't also due for review.
   const reviews = clients.filter((c) => c.status === 'active' && planReviewDue(c, today) && !planJobs[c.id] && !planDrafts[c.id])
   const total = inbox.length + q.failed.length + q.ready.length + q.uncopied.length + q.unwritten.length + reviews.length + p.failed.length + p.ready.length
-
-  const toChart = chartNotes(q).length
-  const charted = charting ? notes.filter((n) => charting.includes(n.id)) : []
-  const resume = charted.find((n) => chartStatus(n) !== 'done') ?? charted[0]
 
   const open = (n: Note) => navigate({ view: 'note', id: n.id })
   const markCopied = (n: Note) => void saveNote({ ...n, copiedAt: new Date().toISOString() })
@@ -63,56 +71,15 @@ export function QueueView({ onNewClient }: { onNewClient(): void }) {
       </section>
     )
 
+  if (!total)
+    return (
+      <p className="muted">
+        Press <Kbd>⌘N</Kbd> to start the next note.
+      </p>
+    )
+
   return (
-    <div className="page today">
-      <header className="page-head drag" />
-      <div className="today-body">
-        <div className="today-hero">
-          <p className="eyebrow">{longDate(today)}</p>
-          <h1 className="display">{total ? `${total} to do.` : 'All caught up.'}</h1>
-          {(toChart > 0 || !!settings.ehrs?.length) && (
-            <div className="row gap chart-start">
-              {charting ? (
-                <>
-                  <Button variant="primary" icon={<ClipboardList size={15} />} onClick={() => navigate({ view: 'chart', id: resume?.id })} title="Back to the notes you're charting">
-                    Resume charting
-                  </Button>
-                  <Button variant="ghost" onClick={stopCharting}>
-                    Stop charting
-                  </Button>
-                </>
-              ) : (
-                toChart > 0 && (
-                  <Button variant="primary" icon={<ClipboardList size={15} />} onClick={startCharting} title="⇧⌘E">
-                    Chart {toChart} note{toChart === 1 ? '' : 's'}
-                  </Button>
-                )
-              )}
-              {!!settings.ehrs?.length && (
-                <Button variant="ghost" icon={<ExternalLink size={14} />} onClick={() => void openEhrs()} title="⌥⌘E">
-                  Open EHRs
-                </Button>
-              )}
-              {toChart > 0 && !charting && <Kbd>⇧⌘E</Kbd>}
-            </div>
-          )}
-        </div>
-
-        {clients.length === 0 ? (
-          <div className="start-empty">
-            <p className="muted">Add a client to begin. All Echo needs is a name.</p>
-            <Button variant="primary" icon={<UserPlus size={15} />} onClick={onNewClient}>
-              Add your first client
-            </Button>
-          </div>
-        ) : (
-          !total && (
-            <p className="muted">
-              Press <Kbd>⌘N</Kbd> to start the next note.
-            </p>
-          )
-        )}
-
+    <div className="queue-sections">
         {inbox.length > 0 && (
           <section className="today-section">
             <h2>
@@ -214,7 +181,6 @@ export function QueueView({ onNewClient }: { onNewClient(): void }) {
             </button>
           ))
         )}
-      </div>
     </div>
   )
 }

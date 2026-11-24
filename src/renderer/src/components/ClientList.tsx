@@ -1,14 +1,13 @@
 import { useMemo, useState } from 'react'
-import { BookOpen, ChevronRight, Inbox, Plus, Search, Settings as Gear } from 'lucide-react'
+import { ChevronRight, Plus, Search } from 'lucide-react'
 import { todayISO } from '@shared/compliance'
-import { buildPlanQueue, buildQueue, queueCount } from '@shared/queue'
 import { useStore } from '../store'
 import { Avatar, Kbd } from './ui'
 import { ActivityPanel } from './ActivityPanel'
-import { UpdateBadge } from './UpdateBadge'
 
-export function Sidebar({ onNewClient, onFind }: { onNewClient(): void; onFind(): void }) {
-  const { clients, notes, inbox, jobs, planJobs, planDrafts, route, navigate } = useStore()
+/** The Clients tab's left column: every client, on every page in the tab, a click from their profile, with Activity at its foot. */
+export function ClientList({ onNewClient, onFind }: { onNewClient(): void; onFind(): void }) {
+  const { clients, notes, jobs, planJobs, route, navigate, documents } = useStore()
   const [showDischarged, setShowDischarged] = useState(false)
   const today = todayISO()
 
@@ -18,13 +17,19 @@ export function Sidebar({ onNewClient, onFind }: { onNewClient(): void; onFind()
     () => new Set([...notes.filter((n) => jobs[n.id] && !jobs[n.id].error).map((n) => n.clientId), ...Object.keys(planJobs).filter((id) => !planJobs[id].error)]),
     [notes, jobs, planJobs]
   )
-  const waiting = useMemo(() => queueCount(buildQueue(notes, clients, jobs), buildPlanQueue(clients, planJobs, planDrafts)), [notes, clients, jobs, planJobs, planDrafts]) + inbox.length
 
   const sorted = useMemo(() => [...clients].sort((a, b) => a.name.localeCompare(b.name)), [clients])
   const active = sorted.filter((c) => c.status === 'active')
   const discharged = sorted.filter((c) => c.status === 'discharged')
 
-  const activeId = route.view === 'client' ? route.id : route.view === 'note' ? notes.find((n) => n.id === route.id)?.clientId : undefined
+  const activeId =
+    route.view === 'client'
+      ? route.id
+      : route.view === 'note'
+        ? notes.find((n) => n.id === route.id)?.clientId
+        : route.view === 'document'
+          ? documents.find((d) => d.id === route.id)?.clientId
+          : undefined
 
   const item = (c: (typeof clients)[number]) => (
     <button key={c.id} className={`side-item ${activeId === c.id ? 'active' : ''}`} onClick={() => navigate({ view: 'client', id: c.id })}>
@@ -36,29 +41,11 @@ export function Sidebar({ onNewClient, onFind }: { onNewClient(): void; onFind()
 
   return (
     <aside className="sidebar">
-      <div className="drag sidebar-top" />
       <button className="side-search" onClick={onFind}>
         <Search size={14} />
         <span>Find client</span>
         <Kbd>⌘K</Kbd>
       </button>
-
-      <nav className="side-nav">
-        <button className={`side-item ${route.view === 'queue' ? 'active' : ''}`} onClick={() => navigate({ view: 'queue' })}>
-          <span className="side-icon">
-            <Inbox size={15} />
-          </span>
-          <span className="side-name">Queue</span>
-          {waiting > 0 && <span className="side-count">{waiting}</span>}
-        </button>
-        <button className={`side-item ${route.view === 'library' ? 'active' : ''}`} onClick={() => navigate({ view: 'library' })} title="⇧⌘L">
-          <span className="side-icon">
-            <BookOpen size={15} />
-          </span>
-          <span className="side-name">Library</span>
-        </button>
-      </nav>
-
       <div className="side-section">
         <span>Clients</span>
         <button className="icon-btn" onClick={onNewClient} title="New client (⇧⌘N)" aria-label="New client">
@@ -82,16 +69,8 @@ export function Sidebar({ onNewClient, onFind }: { onNewClient(): void; onFind()
           </>
         )}
       </div>
-
+      {/* Here, Activity stays at the foot of the list whenever there's anything to show, clear of the dictation bar. */}
       <ActivityPanel />
-      <UpdateBadge />
-
-      <button className={`side-item side-settings ${route.view === 'settings' ? 'active' : ''}`} onClick={() => navigate({ view: 'settings' })}>
-        <span className="side-icon">
-          <Gear size={15} />
-        </span>
-        <span className="side-name">Settings</span>
-      </button>
     </aside>
   )
 }

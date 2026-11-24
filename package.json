@@ -6,16 +6,19 @@
   "main": "out/main/index.js",
   "private": true,
   "scripts": {
-    "dev": "npm run build:transcriber && electron-vite dev",
+    "dev": "npm run build:native && electron-vite dev",
     "dev:mock": "ECHO_MOCK_AI=1 electron-vite dev",
     "build": "electron-vite build",
+    "build:native": "npm run build:transcriber && npm run build:pointer",
+    "build:pointer": "swift build -c release --arch arm64 --package-path native/pointer && mkdir -p native/pointer/dist && cp \"$(swift build -c release --arch arm64 --package-path native/pointer --show-bin-path)/EchoPointer\" native/pointer/dist/",
+    "fake-ehr": "node scripts/fake-ehr/serve.mjs",
     "build:transcriber": "swift build -c release --arch arm64 --package-path native/transcriber && mkdir -p native/transcriber/dist && cp \"$(swift build -c release --arch arm64 --package-path native/transcriber --show-bin-path)/EchoTranscriber\" native/transcriber/dist/",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "package": "npm run build:transcriber && electron-vite build && electron-builder --mac --dir",
-    "dist": "npm run build:transcriber && electron-vite build && electron-builder --mac",
+    "package": "npm run build:native && electron-vite build && electron-builder --mac --dir",
+    "dist": "npm run build:native && electron-vite build && electron-builder --mac",
     "release": "npm version patch -m \"Release %s\" && git push --follow-tags && npm run publish:mac",
-    "publish:mac": "npm run build:transcriber && electron-vite build && (gh release view v$npm_package_version >/dev/null 2>&1 || gh release create v$npm_package_version --draft --verify-tag --title $npm_package_version --notes '') && GH_TOKEN=$(gh auth token) electron-builder --mac --publish always && gh release edit v$npm_package_version --draft=false --latest",
+    "publish:mac": "npm run build:native && electron-vite build && (gh release view v$npm_package_version >/dev/null 2>&1 || gh release create v$npm_package_version --draft --verify-tag --title $npm_package_version --notes '') && GH_TOKEN=$(gh auth token) electron-builder --mac --publish always && gh release edit v$npm_package_version --draft=false --latest",
     "postinstall": "install-electron"
   },
   "build": {
@@ -28,6 +31,10 @@
       {
         "from": "native/transcriber/dist/EchoTranscriber",
         "to": "EchoTranscriber"
+      },
+      {
+        "from": "native/pointer/dist/EchoPointer",
+        "to": "EchoPointer"
       },
       {
         "from": "Green logo.png",
@@ -64,7 +71,7 @@
       "extendInfo": {
         "NSMicrophoneUsageDescription": "Echo uses the microphone so you can dictate session summaries.",
         "NSLocalNetworkUsageDescription": "Echo receives the dictations you record on your iPhone over your local network.",
-        "NSAppleEventsUsageDescription": "Echo opens your EHRs in Google Chrome and arranges their windows beside Echo. It doesn't read or type into the pages.",
+        "NSAppleEventsUsageDescription": "Echo opens your EHRs in Google Chrome and arranges their windows beside Echo. If you turn on placing notes with Claude, it also reads the EHR's window and clicks and types in it while you watch.",
         "NSBonjourServices": [
           "_echo-memo._tcp"
         ]
