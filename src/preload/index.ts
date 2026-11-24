@@ -29,7 +29,7 @@ const api: EchoApi = {
   },
   installUpdate: () => ipcRenderer.send('update:install'),
   openEhrs: () => ipcRenderer.invoke('ehr:open'),
-  showEhr: (id) => ipcRenderer.invoke('ehr:show', id),
+  showEhr: (id, options) => ipcRenderer.invoke('ehr:show', id, options),
   restoreEcho: () => ipcRenderer.invoke('ehr:restore'),
   placePermissions: (prompt) => ipcRenderer.invoke('place:permissions', prompt),
   placeNote: (noteId) => ipcRenderer.invoke('place:start', noteId),

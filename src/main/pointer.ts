@@ -21,7 +21,8 @@ function helperPath(): string {
 
 let child: ChildProcessWithoutNullStreams | null = null
 let nextId = 1
-const pending = new Map<number, { resolve(r: Reply): void; reject(e: Error): void }>()
+/** Requests waiting for a reply, with the helper they went to: a helper stopped after a run exits a moment later, and must fail only its own. */
+const pending = new Map<number, { proc: ChildProcessWithoutNullStreams; resolve(r: Reply): void; reject(e: Error): void }>()
 
 function start(): ChildProcessWithoutNullStreams {
   if (child) return child
@@ -42,8 +43,11 @@ function start(): ChildProcessWithoutNullStreams {
   })
   const gone = (message: string) => {
     if (child === proc) child = null
-    for (const [, p] of pending) p.reject(new Error(message))
-    pending.clear()
+    for (const [id, p] of pending) {
+      if (p.proc !== proc) continue
+      pending.delete(id)
+      p.reject(new Error(message))
+    }
   }
   proc.on('error', () => gone('Echo’s pointer helper couldn’t start. Reinstall Echo, or run npm run build:pointer in development.'))
   proc.on('exit', () => gone('Echo’s pointer helper stopped.'))
@@ -54,7 +58,7 @@ function call(cmd: string, args: Record<string, unknown> = {}): Promise<Reply> {
   const proc = start()
   const id = nextId++
   return new Promise((resolve, reject) => {
-    pending.set(id, { resolve, reject })
+    pending.set(id, { proc, resolve, reject })
     proc.stdin.write(`${JSON.stringify({ id, cmd, ...args })}\n`)
   })
 }

@@ -43,7 +43,7 @@
 <header>
   <b>PracticePad</b>
   <nav id="nav"></nav>
-  <span class="user">Test Clinician · Fake EHR, made-up patients</span>
+  <span class="user">Test Clinician · Fake EHR, made-up patients · <a href="#" onclick="signOut();return false" style="color:#cfd8ff">Sign out</a></span>
 </header>
 <main id="app"></main>
 <script>
@@ -186,7 +186,44 @@ function planForm(path) {
     <p style="margin-top:16px"><button onclick="${set('state')}='saved';render()">Save draft</button> <button class="danger" onclick="${set('state')}='signed';render()">Sign plan</button></p></div>`
 }
 
+// Signing in, for trying the Navigator's sign-in check. Any username and password work; Chrome can save them.
+// Two-step codes are off unless turned on below the sign-in form (or ?mfa=1). ?autofill=1 fills the form in as
+// Chrome's saved password would, for testing without saving one. Signed in lasts until Sign out (or 8 hours).
+const SIGNED_IN = 'fakeehr-signed-in'
+const MFA = 'fakeehr-mfa'
+const params = new URLSearchParams(location.search)
+if (params.get('mfa') === '1') localStorage.setItem(MFA, '1')
+let pendingCode = null
+const signedIn = () => Number(localStorage.getItem(SIGNED_IN) || 0) > Date.now()
+function signOut() { localStorage.removeItem(SIGNED_IN); pendingCode = null; render() }
+function finishSignIn() { localStorage.setItem(SIGNED_IN, String(Date.now() + 8 * 36e5)); pendingCode = null; render() }
+function submitSignIn(e) {
+  e.preventDefault()
+  if (!e.target.username.value || !e.target.password.value) { document.getElementById('signin-error').textContent = 'Enter your username and password.'; return }
+  if (localStorage.getItem(MFA) === '1') { pendingCode = String(Math.floor(100000 + Math.random() * 900000)); render() }
+  else finishSignIn()
+}
+function submitCode(e) {
+  e.preventDefault()
+  if (e.target.code.value.trim() === pendingCode) finishSignIn()
+  else document.getElementById('code-error').textContent = 'That code isn’t right.'
+}
+function signInPage() {
+  document.getElementById('nav').innerHTML = ''
+  if (pendingCode) return `<div class="card" style="max-width:380px;margin:40px auto"><h1>Two-step verification</h1>
+    <p class="muted">We sent a code to your phone ending 00. (Fake text message: your code is <b>${pendingCode}</b>.)</p>
+    <form onsubmit="submitCode(event)"><div class="fields"><label for="code">Code</label><input id="code" name="code" autocomplete="one-time-code" inputmode="numeric"></div>
+    <p id="code-error" style="color:var(--danger)"></p><p><button class="primary" type="submit">Verify</button></p></form></div>`
+  return `<div class="card" style="max-width:380px;margin:40px auto"><h1>Sign in to PracticePad</h1>
+    <form onsubmit="submitSignIn(event)" autocomplete="on"><div class="fields">
+      <label for="username">Username</label><input id="username" name="username" autocomplete="username" style="width:100%" value="${params.get('autofill') === '1' ? 'test.clinician' : ''}">
+      <label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" style="width:100%" value="${params.get('autofill') === '1' ? 'not-a-real-password' : ''}">
+    </div><p id="signin-error" style="color:var(--danger)"></p><p><button class="primary" type="submit">Sign in</button></p></form>
+    <p class="help"><label><input type="checkbox" ${localStorage.getItem(MFA) === '1' ? 'checked' : ''} onchange="localStorage.setItem(MFA, this.checked ? '1' : '0')"> Ask for a two-step code (for testing)</label></p></div>`
+}
+
 function render() {
+  if (!signedIn()) { document.getElementById('app').innerHTML = signInPage(); return }
   const [, view, id] = location.hash.replace(/^#\/?/, '').match(/^([a-z]*)\/?(.*)$/) || []
   const app = document.getElementById('app')
   const active = document.activeElement && document.activeElement.id

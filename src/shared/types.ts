@@ -357,7 +357,8 @@ export interface EchoApi {
   /** Opens the EHRs from Settings in Chrome and arranges the windows. Resolves with a note for the clinician, if any. */
   openEhrs(): Promise<{ note?: string }>
   /** Brings one EHR (by Ehr.id) to the front in Chrome, ready to paste into. */
-  showEhr(id: string): Promise<void>
+  /** Brings an EHR's tab forward. beside: lays it out beside Echo and leaves Echo in front. */
+  showEhr(id: string, options?: { beside?: boolean }): Promise<void>
   /** Puts Echo's window back as it was before the EHRs were laid out beside it. */
   restoreEcho(): Promise<void>
   /** Whether Echo may capture the screen and control the pointer; with `prompt`, asks macOS for whichever is missing. */

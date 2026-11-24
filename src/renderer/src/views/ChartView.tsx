@@ -1,20 +1,24 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowRight, Check, ChevronLeft, Copy, ExternalLink, FileText, LayoutPanelLeft, LogOut, MousePointerClick, PencilLine, Wand2 } from 'lucide-react'
-import type { Note } from '@shared/types'
+import type { Client, Note } from '@shared/types'
 import { NOTE_TYPE_LABEL } from '@shared/types'
 import { auditChecks, todayISO } from '@shared/compliance'
 import { headerLines, sectionHtml, sectionText, signatureLine } from '@shared/format'
-import { usableEhrs } from '@shared/ehr'
+import { clientsWithoutEhr, usableEhrs } from '@shared/ehr'
 import { buildQueue, chartStatus, nextToChart, type ChartStatus } from '@shared/queue'
 import { api, nowISO, relativeDay } from '../lib/util'
 import { copyNote, finalizedMessage, finalizeNote } from '../lib/finalizeNote'
 import { useCommand, useStore } from '../store'
 import { PlacePanel } from '../components/PlacePanel'
 import { PlaceBatchCard } from '../components/PlaceBatchCard'
-import { notesToPlace, placeAll, placeAllLabel, PLACE_ALL_TITLE } from '../lib/placeAll'
+import { ChooseEhrModal } from '../components/ChooseEhrModal'
+import { notesToPlace, placeAll, PLACE_ALL_TITLE } from '../lib/placeAll'
 import { Avatar, Button, CopyButton, Kbd } from '../components/ui'
 
 const STATUS_LABEL: Record<ChartStatus, string> = { review: 'To review', copy: 'Finalized, not copied', done: 'Copied' }
+
+/** The EHRs opened beside Echo this charting session: each opens when the first note that needs it comes up. */
+const openedThisSession = new Set<string>()
 
 function StatusIcon({ status }: { status: ChartStatus }) {
   if (status === 'done') return <Check size={13} className="ok" />
@@ -83,6 +87,30 @@ export function ChartView({ noteId }: { noteId?: string }) {
     await placeNote(saved.id)
   }
 
+  /** Hands every note left to the Navigator, asking first for any client's EHR that isn't chosen yet. */
+  const [choosing, setChoosing] = useState<Client[] | null>(null)
+  const startNavigator = () => {
+    const missing = clientsWithoutEhr(placeable, byClient, settings.ehrs)
+    if (missing.length) setChoosing(missing)
+    else void placeAll(store, placeable)
+  }
+  const chose = (choices: Map<string, string>) => {
+    const asked = choosing ?? []
+    setChoosing(null)
+    // Skipped clients' notes stay in the list to chart by hand.
+    const skipped = new Set(asked.filter((c) => !choices.has(c.id)).map((c) => c.id))
+    const notes = placeable.filter((n) => !skipped.has(n.clientId))
+    if (notes.length) void placeAll(store, notes, choices)
+  }
+
+  // Each EHR opens beside Echo when the first note that needs it comes up, not all at once when charting starts.
+  useEffect(() => {
+    if (!charting) return void openedThisSession.clear()
+    if (!ehr || batchRunning || settings.ehrOpenOnChart === false || openedThisSession.has(ehr.id)) return
+    openedThisSession.add(ehr.id)
+    void showEhr(ehr.id, { beside: true })
+  }, [charting, ehr?.id, batchRunning]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useCommand('finalize', () => void send())
   useCommand('copy-note', () => void copyOnly())
   useCommand('chart-prev', () => go(list[i - 1]))
@@ -140,11 +168,11 @@ export function ChartView({ noteId }: { noteId?: string }) {
       <div className="chart-body">
         <nav className="chart-rail" aria-label="Notes to chart">
           {placeable.length > 0 && !placeBatch && (
-            <button className="chart-navigate" onClick={() => void placeAll(store, placeable)} disabled={placingNow} title={PLACE_ALL_TITLE}>
+            <button className="chart-navigate" onClick={startNavigator} disabled={placingNow} title={PLACE_ALL_TITLE}>
               <Wand2 size={15} />
               <span>
-                <b>{placeable.length === 1 ? 'Chart it for me' : `Chart all ${placeable.length} for me`}</b>
-                <small>Each in its own tab. You sign.</small>
+                <b>{placeable.length === 1 ? 'Navigator: chart it for me' : `Navigator: chart all ${placeable.length}`}</b>
+                <small>Each in its own tab, while you step away. You sign.</small>
               </span>
             </button>
           )}
@@ -296,6 +324,7 @@ export function ChartView({ noteId }: { noteId?: string }) {
           )}
         </footer>
       )}
+      {choosing && <ChooseEhrModal clients={choosing} ehrs={ehrs} onCancel={() => setChoosing(null)} onDone={chose} />}
     </div>
   )
 }

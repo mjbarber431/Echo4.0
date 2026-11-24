@@ -136,11 +136,11 @@ export function EhrSettings() {
             ))
           )}
         </div>
-        <Toggle checked={settings.ehrOpenOnChart !== false} onChange={(ehrOpenOnChart) => void saveSettings({ ehrOpenOnChart })} label="Open the EHRs when charting starts" />
+        <Toggle checked={settings.ehrOpenOnChart !== false} onChange={(ehrOpenOnChart) => void saveSettings({ ehrOpenOnChart })} label="Open each EHR beside Echo when charting reaches a note for it" />
         <p className="fine-print">
           <b>Signing in:</b> let Chrome save each EHR’s password when you sign in (and tick “Remember me” or “Trust this device” where the EHR offers it). Chrome then fills it in
-          each time, kept in its own password manager and protected by your Mac login. Echo doesn’t store EHR passwords or type them in, and the EHR’s own two-step code stays with
-          you.
+          each time, kept in its own password manager and protected by your Mac login. Echo doesn’t store EHR passwords or type them in. Before the Navigator charts a batch, it checks you’re signed in to
+          each EHR it needs, choosing your saved account in Chrome and clicking Sign in if it isn’t; any two-step code stays with you.
         </p>
       </section>
       <section className="settings-group">

@@ -24,6 +24,11 @@ describe('placing notes', () => {
     expect(text).not.toContain('2026-11-19')
   })
 
+  it('tells Claude the time, so it knows which of today’s appointments have happened', () => {
+    const text = placeTask({ ehrName: 'TestEHR', clientName: 'Sam', noteLabel: 'Progress note', sessionDate: '2026-11-23', today: '2026-11-24', now: '1:42 PM' })
+    expect(text).toContain("Today: Tuesday, November 24, 2026, and it's 1:42 PM now")
+  })
+
   it('puts the clinician’s instructions before the saved route', () => {
     const text = placeTask({ ehrName: 'TestEHR', clientName: 'Sam', noteLabel: 'Progress note', sessionDate: '2026-11-19', today: '2026-11-23', instructions: 'Use the Notes tab.', route: '1. Calendar' })
     expect(text.indexOf('Use the Notes tab.')).toBeLessThan(text.indexOf('1. Calendar'))
@@ -237,7 +242,7 @@ describe('placing notes', () => {
 describe('batchCounts', () => {
   const item = (state: PlaceBatch['items'][number]['state']) => ({ noteId: state, clientId: 'c', ehrName: 'EHR', state, message: '' })
   it('counts placed, waiting and the rest as needing the clinician', () => {
-    const batch: PlaceBatch = { done: true, items: [item('placed'), item('placed'), item('failed'), item('stopped'), item('waiting')] }
+    const batch: PlaceBatch = { done: true, signIns: [], items: [item('placed'), item('placed'), item('failed'), item('stopped'), item('waiting')] }
     expect(batchCounts(batch)).toEqual({ placed: 2, notPlaced: 2, waiting: 1 })
   })
 })

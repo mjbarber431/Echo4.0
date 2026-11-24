@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { clipboard, ClipboardItem, globalShortcut } from 'electron'
+import { clipboard, ClipboardItem, globalShortcut, powerSaveBlocker } from 'electron'
 import { ehrForClient, learnedFor, learnedPatch, type Ehr, type EhrTask, type Learned } from '../shared/ehr'
 import { noteToHtml, noteToText } from '../shared/format'
 import {
@@ -30,7 +30,11 @@ import {
   SCREENSHOT_MAX_EDGE,
   toScreen,
   type PlaceBatch,
+  type PlaceBatchSignIn,
   type PlaceState,
+  MAX_SIGNIN_TURNS,
+  SIGNIN_SYSTEM,
+  signInTask,
   type PlaceStatus,
   UNATTENDED_NOTE,
   type Shot
@@ -76,6 +80,12 @@ export interface PlaceContext {
   /** Brings the EHR forward with Echo laid out beside it (a batch: only the EHR this note needs). Without it, the EHR's window stays where it is. */
   showBeside?(ehrId: string, newTab: boolean): Promise<Rect | undefined>
 }
+
+/** A run's context. A sign-in check has no client: it's about the EHR, not a note. */
+type RunContext = Omit<PlaceContext, 'client'> & { client?: Client; signin?: boolean }
+
+/** What a run does: place a note, chart a plan, or check the clinician is signed in to the EHR. */
+type RunTask = EhrTask | 'signin'
 
 /** The tools both tasks use. */
 const CUSTOM_TOOLS: Anthropic.Tool[] = [
@@ -174,7 +184,21 @@ const FILL_FIELD: Anthropic.Tool = {
 // Zoom is off: screenshots are already legible at this size, and the helper captures whole windows only.
 const COMPUTER: Anthropic.ToolUnion = { type: 'computer_toolset_20260801', configs: { zoom: { enabled: false } } }
 
-const TOOLS: Record<EhrTask, Anthropic.ToolUnion[]> = { note: [COMPUTER, PASTE_NOTE, ...CUSTOM_TOOLS], plan: [COMPUTER, FILL_FIELD, ...CUSTOM_TOOLS] }
+const SIGNED_IN: Anthropic.Tool = {
+  name: 'done',
+  description: 'Ends the check. signed_in: whether the EHR is now signed in (past its sign-in page). summary: a sentence for the therapist.',
+  strict: true,
+  input_schema: { type: 'object', properties: { signed_in: { type: 'boolean' }, summary: { type: 'string' } }, required: ['signed_in', 'summary'], additionalProperties: false }
+}
+
+const ASK = CUSTOM_TOOLS.find((t) => t.name === 'ask_clinician')!
+
+const TOOLS: Record<RunTask, Anthropic.ToolUnion[]> = {
+  note: [COMPUTER, PASTE_NOTE, ...CUSTOM_TOOLS],
+  plan: [COMPUTER, FILL_FIELD, ...CUSTOM_TOOLS],
+  // Signing in: look, click and press keys, ask, done. No replayed routes or pasting.
+  signin: [COMPUTER, ASK, SIGNED_IN]
+}
 
 /** Price per million tokens (input, output). Cache reads are 0.05× input and 5-minute cache writes 1.25×. */
 const PRICES: Record<string, [number, number]> = { 'claude-opus-5-5': [4, 20], 'claude-sonnet-5-5': [2, 10], 'claude-haiku-5-5': [0.1, 0.5] }
@@ -220,8 +244,8 @@ class Run {
   private trace: ScriptStep[] = []
   private readonly model: string
   private readonly ehr: Ehr
-  /** Placing a note, or charting the client's treatment plan. */
-  private readonly task: EhrTask
+  /** Placing a note, charting the client's treatment plan, or checking the EHR is signed in. */
+  private readonly task: RunTask
   /** What this task has learned in this EHR: instructions, route and recorded steps. */
   private learned: Learned
   /** Plans: the plan in pieces, what's been pasted into fields, and whether Claude has been told what's missing. */
@@ -231,15 +255,15 @@ class Run {
   private listedTrace = false
 
   constructor(
-    private ctx: PlaceContext,
+    private ctx: RunContext,
     ehr: Ehr
   ) {
     this.ehr = ehr
-    this.task = ctx.note ? 'note' : 'plan'
-    this.learned = learnedFor(ehr, this.task)
+    this.task = ctx.signin ? 'signin' : ctx.note ? 'note' : 'plan'
+    this.learned = this.task === 'signin' ? {} : learnedFor(ehr, this.task)
     const wanted = ctx.settings.placeModel
     this.model = PLACE_MODELS.some((m) => m.id === wanted) ? wanted! : DEFAULT_PLACE_MODEL
-    this.status = { kind: this.task, noteId: ctx.note?.id ?? '', clientId: ctx.client.id, ehrName: ehr.name, state: 'starting', log: [], message: '' }
+    this.status = { kind: this.task, noteId: ctx.note?.id ?? '', clientId: ctx.client?.id ?? '', ehrName: ehr.name, state: 'starting', log: [], message: '' }
   }
 
   /** How the run is going, or how it ended. */
@@ -249,7 +273,7 @@ class Run {
 
   /** What's being placed, in words. */
   private get what(): string {
-    return this.task === 'note' ? 'the note' : 'the treatment plan'
+    return this.task === 'note' ? 'the note' : this.task === 'plan' ? 'the treatment plan' : 'the sign-in'
   }
 
   private set(state: PlaceState, message = this.status.message) {
@@ -326,12 +350,15 @@ class Run {
   private keepGuidance(text: string) {
     if (!text) return
     this.log(`You: ${text}`)
+    // Sign-in guidance is for this time only (and may mention the account).
+    if (this.task === 'signin' || !this.ctx.client) return
     const line = keepable(text, this.ctx.client.name, 500)
     this.saveLearned({ instructions: addInstruction(this.learned.instructions, line) })
   }
 
   /** Saves what this task has learned in the EHR. */
   private saveLearned(patch: Learned) {
+    if (this.task === 'signin') return
     this.learned = { ...this.learned, ...patch }
     this.saveEhr(learnedPatch(this.task, this.learned))
   }
@@ -498,7 +525,7 @@ class Run {
           this.record({ action: step.action, label: step.label, ...this.toShot(target) })
           await sleep(350)
         } else if (step.action === 'type') {
-          const text = fillTemplate(step.text, this.ctx.client.name)
+          const text = fillTemplate(step.text, this.ctx.client?.name ?? '')
           this.log(`Replayed: typed`)
           await this.keys(() => pointer.type(this.window, text))
           this.record({ action: 'type', text })
@@ -625,7 +652,7 @@ class Run {
   /** Puts the note on the clipboard, pastes it, and keeps what was on the clipboard to put back afterwards. */
   private async paste() {
     const { note, client, settings } = this.ctx
-    if (!note) throw new Error('There’s no note to paste in this run.')
+    if (!note || !client) throw new Error('There’s no note to paste in this run.')
     if (!this.savedClipboard) this.savedClipboard = await clipboard.read().catch(() => [])
     await clipboard.write([new ClipboardItem({ 'text/plain': noteToText(note, client, settings), 'text/html': noteToHtml(note, client, settings) })])
     await this.keys(() => pointer.key(this.window, 'cmd+v'))
@@ -661,8 +688,9 @@ class Run {
   }
 
   async run(): Promise<void> {
-    const { note, client, settings } = this.ctx
-    if (!note && client.plan) this.pieces = planPieces(client.plan, client.name)
+    const { note, settings } = this.ctx
+    const client = this.ctx.client
+    if (this.task === 'plan' && client?.plan) this.pieces = planPieces(client.plan, client.name)
     this.ctx.emit(this.status)
     try {
       const missing = await missingPermissions()
@@ -681,23 +709,26 @@ class Run {
       this.window = await findWindow(bounds)
       this.check()
 
-      const task = note
+      const task = this.task === 'signin'
+        ? signInTask(this.ehr.name)
+        : note && client
         ? placeTask({
             ehrName: this.ehr.name,
             clientName: client.name,
             noteLabel: `${NOTE_TYPE_LABEL[note.type]}${note.session.cpt ? ` (${note.session.cpt})` : ''}`,
             sessionDate: note.session.date,
             today: localToday(),
+            now: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
             details: { cpt: note.session.cpt, setting: note.session.setting, ...pickTimeOffsets() },
             instructions: this.learned.instructions,
             route: this.learned.route
           })
         : planTask({
             ehrName: this.ehr.name,
-            clientName: client.name,
+            clientName: client!.name,
             today: localToday(),
             pieces: this.pieces,
-            diagnoses: client.diagnoses,
+            diagnoses: client!.diagnoses,
             instructions: this.learned.instructions,
             route: this.learned.route
           })
@@ -715,14 +746,15 @@ class Run {
         intro = `\n\nThe saved script, as Echo recorded it (steps marked choose are yours):\n${script.map(scriptLine).join('\n')}\n\n${this.replayReport(script, 0, r)}`
         await this.pauseIfAsked((g) => (intro += g ? `\nThe therapist paused Echo and says: ${g}` : '\nThe therapist paused Echo, and may have done a step themselves.'))
       } else {
-        this.log(this.learned.route ? `Following the saved route in ${this.ehr.name}` : `Finding the way in ${this.ehr.name} for the first time`)
+        this.log(this.task === 'signin' ? `Checking you’re signed in to ${this.ehr.name}` : this.learned.route ? `Following the saved route in ${this.ehr.name}` : `Finding the way in ${this.ehr.name} for the first time`)
       }
       const first = await this.screenshot()
       const unattended = this.ctx.unattended ? UNATTENDED_NOTE : ''
       const messages: Anthropic.MessageParam[] = [{ role: 'user', content: [{ type: 'text', text: task + unattended + intro }, first] }]
 
       const api = anthropic(this.ctx.apiKey)
-      for (let turn = 0; turn < MAX_PLACE_TURNS; turn++) {
+      const maxTurns = this.task === 'signin' ? MAX_SIGNIN_TURNS : MAX_PLACE_TURNS
+      for (let turn = 0; turn < maxTurns; turn++) {
         this.check()
         // Anything that came up over Echo (another app, Chrome's other windows) goes back behind it.
         if (this.chrome) this.ctx.keepEchoBeside?.(this.chrome)
@@ -734,7 +766,7 @@ class Run {
               max_tokens: 32000,
               // The conversation only grows, so each request reads the one before it from the cache.
               cache_control: { type: 'ephemeral' },
-              system: this.task === 'note' ? PLACE_SYSTEM : PLAN_SYSTEM,
+              system: this.task === 'note' ? PLACE_SYSTEM : this.task === 'plan' ? PLAN_SYSTEM : SIGNIN_SYSTEM,
               tools: TOOLS[this.task],
               output_config: { effort: 'medium' },
               messages
@@ -830,6 +862,9 @@ class Run {
                   await this.screenshot()
                 ])
               )
+            } else if (call.name === 'done' && this.task === 'signin') {
+              finished = { placed: !!input.signed_in, summary: String(input.summary ?? '').trim() }
+              results.push(result('OK'))
             } else if (call.name === 'done' && this.task === 'plan' && input.placed && !this.checkedCoverage && unplacedPieces(this.pieces, this.filled).length) {
               // Once: before finishing a plan, Claude hears which pieces aren't in the form anywhere.
               this.checkedCoverage = true
@@ -843,9 +878,9 @@ class Run {
               )
             } else if (call.name === 'done') {
               finished = { placed: !!input.placed, summary: String(input.summary ?? '').trim() }
-              const route = keepable(String(input.route ?? ''), client.name)
+              const route = keepable(String(input.route ?? ''), client!.name)
               const path = (Array.isArray(input.path) ? input.path : []) as { step: number; choose: boolean; what: string }[]
-              const script = buildScript(this.trace, path, client.name)
+              const script = buildScript(this.trace, path, client!.name)
               const turns = turn + 1
               const seconds = this.activeSeconds()
               const saved = this.learned
@@ -909,7 +944,9 @@ class Run {
 
         if (finished) {
           if (finished.placed) {
-            if (this.task === 'plan') {
+            if (this.task === 'signin') {
+              this.set('placed', `Signed in to ${this.ehr.name}.${this.costNote()}`)
+            } else if (this.task === 'plan') {
               // Plans count as charted once Claude has filled in the form (a note, once it's pasted).
               this.status = { ...this.status, placedAt: new Date().toISOString() }
               const missing = unplacedPieces(this.pieces, this.filled)
@@ -948,10 +985,12 @@ class Run {
         }
         messages.push({ role: 'user', content: results })
       }
-      throw new Error(`Claude took too many steps, so Echo stopped it. Chart ${this.what} by hand, or try again.`)
+      throw new Error(
+        this.task === 'signin' ? `Claude couldn’t sign in to ${this.ehr.name}. Sign in yourself, then try again.` : `Claude took too many steps, so Echo stopped it. Chart ${this.what} by hand, or try again.`
+      )
     } catch (err) {
       if (err instanceof Stopped || this.stopped) this.set('stopped', `Stopped.${this.costNote()}`)
-      else this.set('failed', `${(err as Error).message}${this.costNote()}`)
+      else this.set('failed', `${screenMessage((err as Error).message)}${this.costNote()}`)
     } finally {
       globalShortcut.unregister('Escape')
       // Give the paste time to finish before the clipboard goes back to what it was.
@@ -984,6 +1023,11 @@ async function missingPermissions(): Promise<string> {
   return `Echo needs ${missing} to work in your EHR. Turn Echo on under System Settings › Privacy & Security › ${missing}, then quit and reopen Echo.`
 }
 
+/** Screen capture finds no display while the Mac is locked or its display is asleep: say so plainly. */
+function screenMessage(message: string): string {
+  return /no display found/i.test(message) ? 'The Mac’s screen was locked or asleep, so Echo couldn’t see the EHR. Unlock it and try again.' : message
+}
+
 /** The EHR to place in, or why the Navigator can't start. */
 function readyToPlace(ctx: PlaceContext): Ehr {
   if (ctx.note && ctx.note.status !== 'final') throw new Error('Finalize the note before placing it.')
@@ -1004,22 +1048,30 @@ export async function placeNote(ctx: PlaceContext): Promise<void> {
 }
 
 /**
- * Places several notes one after another without stopping in between. Each gets its own Chrome tab (the first
- * in each EHR reuses the one already open), left on the note for the clinician to review and sign. A question
- * ends that note's run and the batch moves on. contextFor reads the note afresh when its turn comes, so later
- * notes use the route earlier ones saved. Resolves once the batch has started.
+ * Places several notes one after another without stopping in between. First, while the clinician is still at
+ * the Mac, each EHR the notes need is checked for being signed in (Claude signs in with Chrome's saved password,
+ * and asks the clinician for any two-step code). Then each note gets its own Chrome tab (the first in each EHR
+ * reuses the one already open), left on the note for the clinician to review and sign. A question ends that
+ * note's run and the batch moves on. contextFor reads the note afresh when its turn comes, so later notes use the
+ * route earlier ones saved. Resolves once the batch has started.
  */
 export async function placeNotes(noteIds: string[], contextFor: (noteId: string) => PlaceContext, emit: (batch: PlaceBatch) => void): Promise<void> {
   if (current || batch) throw new Error('The Navigator is already working in an EHR.')
   if (!noteIds.length) throw new Error('There are no finalized notes to place.')
   const missing = await missingPermissions()
   if (missing) throw new Error(missing)
+  const items = noteIds.map((id) => {
+    const ctx = contextFor(id)
+    const ehr = ehrFor(ctx.client, ctx.settings)
+    return { noteId: id, clientId: ctx.client.id, ehrId: ehr?.id ?? '', ehrName: ehr?.name ?? '', state: 'waiting' as const, message: '' }
+  })
+  // Each EHR once, in the order the notes need them, with the first note that needs it (for its context).
+  const needed = new Map<string, { ehrName: string; noteId: string }>()
+  for (const item of items) if (item.ehrId && !needed.has(item.ehrId)) needed.set(item.ehrId, { ehrName: item.ehrName, noteId: item.noteId })
   const state: PlaceBatch = {
     done: false,
-    items: noteIds.map((id) => {
-      const ctx = contextFor(id)
-      return { noteId: id, clientId: ctx.client.id, ehrName: ehrFor(ctx.client, ctx.settings)?.name ?? '', state: 'waiting' as const, message: '' }
-    })
+    signIns: [...needed].map(([ehrId, { ehrName }]) => ({ ehrId, ehrName, state: 'waiting' as const, message: '' })),
+    items: items.map(({ ehrId: _, ...item }) => item)
   }
   const me = { stopped: false }
   batch = me
@@ -1027,13 +1079,66 @@ export async function placeNotes(noteIds: string[], contextFor: (noteId: string)
     state.items = state.items.map((item, k) => (k === i ? { ...item, ...patch } : item))
     emit({ ...state })
   }
+  const updateSignIn = (i: number, patch: Partial<PlaceBatchSignIn>) => {
+    state.signIns = state.signIns.map((s, k) => (k === i ? { ...s, ...patch } : s))
+    emit({ ...state })
+  }
   emit({ ...state })
 
   void (async () => {
     const opened = new Set<string>()
+    // The clinician steps away: keep the display awake (and so the Mac unlocked) until the batch ends, or every note would fail on a locked screen.
+    const awake = powerSaveBlocker.start('prevent-display-sleep')
     try {
+      // Signed in to each EHR first, while the clinician can still answer.
+      for (let i = 0; i < state.signIns.length && !me.stopped; i++) {
+        const { ehrId } = state.signIns[i]
+        let run: Run
+        try {
+          const ctx = contextFor(needed.get(ehrId)!.noteId)
+          const ehr = ehrFor(ctx.client, ctx.settings)
+          if (!ehr || ehr.id !== ehrId) throw new Error('This EHR isn’t in Settings › EHRs any more.')
+          // Attended, in the tab already open: it only looks, and clicks only on a sign-in page.
+          run = new Run(
+            {
+              ...ctx,
+              client: undefined,
+              note: undefined,
+              signin: true,
+              unattended: false,
+              newTab: false,
+              emit: (status) => {
+                ctx.emit(status)
+                // Asking for a code shows on the EHR's row as well as in the panel.
+                if (state.signIns[i].state !== status.state) updateSignIn(i, { state: status.state })
+              }
+            },
+            { ...ehr }
+          )
+        } catch (err) {
+          updateSignIn(i, { state: 'failed', message: (err as Error).message })
+          continue
+        }
+        updateSignIn(i, { state: 'starting' })
+        current = run
+        await run.run()
+        if (current === run) current = null
+        updateSignIn(i, { state: run.result.state, message: run.result.message })
+        if (run.result.state === 'stopped') me.stopped = true
+      }
+      // A note whose EHR isn't signed in waits for the clinician.
+      state.signIns.forEach((s) => {
+        if (s.state === 'placed' || me.stopped) return
+        const why = s.message.replace(/\s*\(about \$[\d.]+\)\s*$/, '')
+        state.items = state.items.map((item, k) =>
+          items[k].ehrId === s.ehrId && item.state === 'waiting' ? { ...item, state: 'failed', message: `Not signed in to ${s.ehrName}${why ? `: ${why}` : '.'}` } : item
+        )
+      })
+      emit({ ...state })
+
       for (let i = 0; i < state.items.length && !me.stopped; i++) {
-        if (i > 0) await sleep(1000)
+        if (state.items[i].state !== 'waiting') continue
+        if (opened.size) await sleep(1000)
         if (me.stopped) break
         let run: Run
         try {
@@ -1064,6 +1169,7 @@ export async function placeNotes(noteIds: string[], contextFor: (noteId: string)
         if (run.result.placedAt) tabsHeld = true
       }
     } finally {
+      powerSaveBlocker.stop(awake)
       if (batch === me) batch = null
       state.done = true
       emit({ ...state })

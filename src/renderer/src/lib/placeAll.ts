@@ -1,33 +1,43 @@
 import type { Client, Note, Settings } from '@shared/types'
 import { auditChecks } from '@shared/compliance'
-import { ehrForClient } from '@shared/ehr'
+import { usableEhrs } from '@shared/ehr'
 import { chartStatus } from '@shared/queue'
 import { finalizeNow } from './finalizeNote'
 import type { useStore } from '../store'
 
 type Store = ReturnType<typeof useStore>
 
-/** The button that hands every note to the Navigator. */
-export const placeAllLabel = (n: number) => (n === 1 ? 'Chart it with the Navigator' : `Chart all ${n} with the Navigator`)
-
 export const PLACE_ALL_TITLE =
-  'The Navigator finalizes any drafts, then places each note in its own Chrome tab, one after another, so you can step away. Nothing is signed: you review and sign each one.'
+  'The Navigator finalizes any drafts and checks you’re signed in to each EHR, then places each note in its own Chrome tab, one after another, so you can step away. Nothing is signed: you review and sign each one.'
 
 /**
- * The notes the Navigator can chart on its own, in order: not yet in the EHR, not being rewritten, and with an EHR
- * chosen for the client. Drafts count: placing finalizes them first, as placing one note does.
+ * The notes the Navigator can chart on its own, in order: not yet in the EHR and not being rewritten. Drafts count:
+ * placing finalizes them first, as placing one note does. A client without an EHR chosen counts too: they're asked
+ * for before the Navigator starts (clientsWithoutEhr).
  */
 export function notesToPlace(notes: Note[], clientById: Map<string, Client>, settings: Settings & { mockAI?: boolean }, jobs: Record<string, unknown>): Note[] {
-  if (!settings.placeWithClaude || settings.mockAI) return []
+  if (!settings.placeWithClaude || settings.mockAI || !usableEhrs(settings.ehrs).length) return []
   return notes.filter((n) => {
     const c = clientById.get(n.clientId)
-    return !!c && chartStatus(n) !== 'done' && !jobs[n.id] && !!ehrForClient(c, settings.ehrs)
+    return !!c && chartStatus(n) !== 'done' && !jobs[n.id]
   })
 }
 
-/** Finalizes any drafts (asking once if audit checks fail), then has the Navigator place every note, one after another. */
-export async function placeAll(store: Store, notes: Note[]): Promise<void> {
+
+
+/**
+ * Finalizes any drafts (asking once if audit checks fail), then has the Navigator place every note, one after another.
+ * ehrIds: the EHR just chosen for clients that had none (clientsWithoutEhr in @shared/ehr), saved for each before their drafts are finalized (which saves the client too).
+ */
+export async function placeAll(store: Store, notes: Note[], ehrIds?: Map<string, string>): Promise<void> {
   const clients = new Map(store.clients.map((c) => [c.id, c]))
+  for (const [id, ehrId] of ehrIds ?? []) {
+    const c = clients.get(id)
+    if (!c) continue
+    const next = { ...c, ehrId }
+    clients.set(id, next)
+    store.saveClient(next)
+  }
   const flagged = notes.filter((n) => n.status === 'draft' && auditChecks(n, clients.get(n.clientId)!).some((c) => c.level === 'error'))
   if (flagged.length) {
     const lines = flagged.map((n) => {
@@ -49,6 +59,6 @@ export async function placeAll(store: Store, notes: Note[]): Promise<void> {
     ids.push(n.id)
   }
   // The focused view. Only the EHR each note needs is opened, beside Echo, when that note's turn comes.
-  if (!store.charting) store.startCharting(ids[0], { openEhrs: false })
+  if (!store.charting) store.startCharting(ids[0])
   await store.placeNotes(ids)
 }

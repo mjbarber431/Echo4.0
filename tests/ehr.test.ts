@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Client, Note } from '../src/shared/types'
 import { defaultAttestations } from '../src/shared/compliance'
-import { layoutRects, normalizeEhrUrl, siteOf, usableEhrs, type Rect } from '../src/shared/ehr'
+import { clientsWithoutEhr, layoutRects, normalizeEhrUrl, siteOf, usableEhrs, type Ehr, type Rect } from '../src/shared/ehr'
 import { buildQueue, chartNotes, chartStatus, extendChart, nextToChart } from '../src/shared/queue'
 
 const AREA: Rect = { x: 0, y: 25, width: 1512, height: 919 }
@@ -141,5 +141,21 @@ describe('charting', () => {
     expect(nextToChart(['a', 'b', 'c'], [a, b, c], 'a')?.id).toBe('c')
     expect(nextToChart(['a', 'b', 'c'], [a, b, c], 'c')?.id).toBe('a')
     expect(nextToChart(['a', 'b'], [a, b], 'a')).toBeNull()
+  })
+})
+
+describe('clientsWithoutEhr', () => {
+  const ehr = (id: string) => ({ id, name: id.toUpperCase(), url: `https://${id}.example.com` }) as Ehr
+  const clients = new Map([
+    ['a', { id: 'a', ehrId: 'x' }],
+    ['b', { id: 'b' }],
+    ['c', { id: 'c', ehrId: 'gone' }]
+  ])
+  const notes = [{ clientId: 'b' }, { clientId: 'a' }, { clientId: 'b' }, { clientId: 'c' }, { clientId: 'missing' }]
+  it('lists each client with no usable EHR once, in note order', () => {
+    expect(clientsWithoutEhr(notes, clients, [ehr('x'), ehr('y')]).map((c) => c.id)).toEqual(['b', 'c'])
+  })
+  it('asks about nobody when there is only one EHR to use', () => {
+    expect(clientsWithoutEhr(notes, clients, [ehr('x')])).toEqual([])
   })
 })

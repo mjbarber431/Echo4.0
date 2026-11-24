@@ -174,3 +174,14 @@ export function ehrForClient(client: { ehrId?: string }, saved: Ehr[] | undefine
   const ehrs = usableEhrs(saved)
   return (client.ehrId && ehrs.find((e) => e.id === client.ehrId)) || (ehrs.length === 1 ? ehrs[0] : undefined)
 }
+
+/** The clients among these notes with no EHR chosen (and more than one to choose from), each once, in order: asked for before the Navigator charts a batch. */
+export function clientsWithoutEhr<C extends { id: string; ehrId?: string }>(notes: { clientId: string }[], clientById: Map<string, C>, saved: Ehr[] | undefined): C[] {
+  const seen = new Set<string>()
+  return notes.flatMap((n) => {
+    const c = clientById.get(n.clientId)
+    if (!c || seen.has(c.id) || ehrForClient(c, saved)) return []
+    seen.add(c.id)
+    return [c]
+  })
+}

@@ -15,7 +15,7 @@ import { Avatar, Button, CopyButton } from '../components/ui'
  * are never touched. Exit stops a run still going and puts Echo's window back.
  */
 export function PlanChartView({ clientId, from }: { clientId: string; from?: 'client' | 'charting' }) {
-  const { clients, settings, placement, navigate, openEhrs, showEhr, placePlan, clearPlacement } = useStore()
+  const { clients, settings, placement, navigate, showEhr, placePlan, clearPlacement } = useStore()
   const client = clients.find((c) => c.id === clientId)
   const ehr = client && ehrForClient(client, settings.ehrs)
   const pieces = useMemo(() => (client?.plan ? planPieces(client.plan, client.name) : []), [client])
@@ -24,10 +24,10 @@ export function PlanChartView({ clientId, from }: { clientId: string; from?: 'cl
   const busyElsewhere = !!placement && !mine && ['starting', 'running', 'paused', 'asking'].includes(placement.state)
   const canNavigate = !!settings.placeWithClaude && !!ehr && !settings.mockAI
 
-  // Lay the EHRs out beside Echo, as focused note charting does.
+  // The client's EHR beside Echo, as focused note charting does: just the one this plan goes into.
   useEffect(() => {
-    if (settings.ehrOpenOnChart !== false && settings.ehrs?.length) void openEhrs()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    if (ehr && settings.ehrOpenOnChart !== false) void showEhr(ehr.id, { beside: true })
+  }, [ehr?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const exit = () => {
     if (live) api().placeStop()

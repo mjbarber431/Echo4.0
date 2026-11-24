@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
-import { CheckCircle2, ClipboardList, ExternalLink, FileText, Loader2, Target, Wand2, X } from 'lucide-react'
+import { CheckCircle2, ClipboardList, ExternalLink, FileText, Loader2, Target, X } from 'lucide-react'
 import { NOTE_TYPE_LABEL } from '@shared/types'
 import { todayISO } from '@shared/compliance'
 import { ehrForClient, usableEhrs } from '@shared/ehr'
-import { notesToPlace, placeAll, placeAllLabel, PLACE_ALL_TITLE } from '../lib/placeAll'
+import { notesToPlace } from '../lib/placeAll'
 import { buildQueue, chartNotes, chartStatus, plansToChart } from '@shared/queue'
 import { useStore } from '../store'
 import { relativeDay } from '../lib/util'
@@ -12,14 +12,14 @@ import { PlaceBatchCard } from '../components/PlaceBatchCard'
 
 /**
  * Charting: getting notes into the EHR. Opens on the notes not yet there (drafts to review and finalized
- * notes not yet copied or placed). Starting goes into focused charting, one note at a time with the EHRs
- * beside Echo, where the Navigator can place each one. Treatment plans Echo has freshly drafted or updated
+ * notes not yet copied or placed). Starting goes into focused charting, the one place notes are charted:
+ * one at a time with each note's EHR beside Echo, or all of them by the Navigator. Treatment plans Echo has freshly drafted or updated
  * and that aren't charted yet wait here too; otherwise plans are charted from the client's Plan tab.
  * Nothing here opens the EHRs by itself.
  */
 export function ChartingView() {
   const store = useStore()
-  const { notes, clients, jobs, settings, charting, navigate, startCharting, stopCharting, openEhrs, saveClient, placeBatch, placement } = store
+  const { notes, clients, jobs, settings, charting, navigate, startCharting, stopCharting, openEhrs, saveClient, placeBatch } = store
   const today = todayISO()
   const byId = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients])
   const q = useMemo(() => buildQueue(notes, clients, jobs, today), [notes, clients, jobs, today])
@@ -31,8 +31,7 @@ export function ChartingView() {
   const charted = charting ? notes.filter((n) => charting.includes(n.id)) : []
   const resume = charted.find((n) => chartStatus(n) !== 'done') ?? charted[0]
   const plans = plansToChart(clients)
-  // The notes the Navigator can chart by itself, one after another.
-  const navigating = !!placement && ['starting', 'running', 'paused', 'asking'].includes(placement.state)
+  // Whether the Navigator can take them, once charting starts.
   const placeable = notesToPlace(list, byId, settings, jobs)
 
   return (
@@ -56,34 +55,28 @@ export function ChartingView() {
               <h2>{list.length ? `${list.length} note${list.length === 1 ? '' : 's'} to chart` : 'Nothing to chart'}</h2>
               <p className="muted small">
                 {list.length
-                  ? `Go through them one at a time${ehrs.length ? ' with your EHRs beside Echo' : ''}${settings.placeWithClaude ? ', and have the Navigator place each one' : ''}.`
+                  ? `Go through them one at a time${ehrs.length ? ', each with its EHR beside Echo' : ''}.`
                   : writing
                     ? 'Notes still writing will be ready to chart when they’re done.'
                     : 'Every note is finalized and in the EHR.'}
                 {writing > 0 && list.length > 0 && ` ${writing} more writing.`}
-                {placeable.length > 0 &&
-                  ` Or let the Navigator chart ${placeable.length === 1 ? 'it' : `all ${placeable.length}`} while you step away, each in its own tab, and sign them when you’re back.`}
+                {placeable.length > 0 && ` Or, from there, let the Navigator chart ${placeable.length === 1 ? 'it' : `all ${placeable.length}`} while you step away, and sign them when you’re back.`}
               </p>
             </div>
             <div className="chart-start-actions">
-              {placeable.length > 0 && (
-                <Button variant="primary" icon={<Wand2 size={15} />} onClick={() => void placeAll(store, placeable)} disabled={navigating} title={PLACE_ALL_TITLE}>
-                  {placeAllLabel(placeable.length)}
-                </Button>
-              )}
               {charting ? (
                 <div className="row gap">
                   <Button variant="ghost" onClick={stopCharting}>
                     Stop
                   </Button>
-                  <Button variant={placeable.length ? 'secondary' : 'primary'} icon={<ClipboardList size={15} />} onClick={() => navigate({ view: 'chart', id: resume?.id })}>
+                  <Button variant="primary" icon={<ClipboardList size={15} />} onClick={() => navigate({ view: 'chart', id: resume?.id })}>
                     Resume charting
                   </Button>
                 </div>
               ) : (
                 (list.length > 0 || writing > 0) && (
-                  <Button variant={placeable.length ? 'secondary' : 'primary'} icon={<ClipboardList size={15} />} onClick={() => startCharting()} title="⇧⌘E">
-                    {placeable.length ? 'Chart myself' : 'Start charting'}
+                  <Button variant="primary" icon={<ClipboardList size={15} />} onClick={() => startCharting()} title="⇧⌘E">
+                    Start charting
                   </Button>
                 )
               )}

@@ -120,12 +120,12 @@ interface Store {
   charting: string[] | null
   /** Start going through the new notes (and open the EHRs, if Settings says so). */
   /** Starts going through the notes to chart, open on the given one (or the first). */
-  startCharting(noteId?: string, options?: { openEhrs?: boolean }): void
+  startCharting(noteId?: string): void
   stopCharting(): void
   /** Open the EHRs in Chrome and arrange the windows. */
   openEhrs(): Promise<void>
   /** Bring one EHR to the front in Chrome. */
-  showEhr(id: string): Promise<void>
+  showEhr(id: string, options?: { beside?: boolean }): Promise<void>
   /** Claude placing a note in the EHR: the current or last run, or null. */
   placement: PlaceStatus | null
   /** Starts Claude placing a finalized note in the client's EHR. */
@@ -265,9 +265,9 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
   }, [toast])
 
   const showEhr = useCallback(
-    async (id: string) => {
+    async (id: string, options?: { beside?: boolean }) => {
       try {
-        await api().showEhr(id)
+        await api().showEhr(id, options)
       } catch (err) {
         toast(errorMessage(err), 'error')
       }
@@ -574,7 +574,7 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
       markSeen,
       toasts,
       charting,
-      startCharting(noteId, options) {
+      startCharting(noteId) {
         const list = chartNotes(buildQueue(notesRef.current, clientsRef.current, jobsRef.current))
         if (!list.length) {
           const writing = Object.values(jobsRef.current).some((j) => !j.error)
@@ -582,8 +582,8 @@ export function StoreProvider({ initial, children }: { initial: AppState; childr
           if (!writing) return
         }
         setCharting(list.map((n) => n.id))
+        // Each EHR opens beside Echo when the first note that needs it comes up (ChartView), not all at once.
         setRoute({ view: 'chart', id: list.find((n) => n.id === noteId)?.id ?? list[0]?.id })
-        if (options?.openEhrs !== false && settings.ehrOpenOnChart !== false && settings.ehrs?.length) void openEhrs()
       },
       stopCharting() {
         setCharting(null)

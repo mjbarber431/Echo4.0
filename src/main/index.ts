@@ -339,8 +339,14 @@ function registerIpc(): void {
 
   ipcMain.handle('ehr:open', () => openEhrs(win, vault.data.settings.ehrs, vault.data.settings.ehrLayout))
   ipcMain.handle('ehr:restore', () => restoreEcho(win))
-  ipcMain.handle('ehr:show', async (_e, id: string) => {
-    await showEhr(vault.data.settings.ehrs, id)
+  ipcMain.handle('ehr:show', async (_e, id: string, options?: { beside?: boolean }) => {
+    if (!options?.beside) return void (await showEhr(vault.data.settings.ehrs, id))
+    // Charting reached a note in an EHR not open yet: open it beside Echo, and leave Echo in front to work in.
+    await showEhr(vault.data.settings.ehrs, id, false, { win, layout: vault.data.settings.ehrLayout })
+    if (win && !win.isDestroyed()) {
+      win.show()
+      win.focus()
+    }
   })
 
   ipcMain.handle('place:permissions', (_e, prompt?: boolean) => placePermissions(!!prompt))
