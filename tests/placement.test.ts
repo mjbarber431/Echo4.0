@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addInstruction, betterRoute, buildScript, describeAction, fillTemplate, nextChoose, scriptLine, templateText, type ScriptStep, pickMatch, unsafeLabel, keepable, macCombo, pickTimeOffsets, placeTask, toScreen, weekOf } from '../src/shared/placement'
+import { addInstruction, betterRoute, buildScript, describeAction, fillTemplate, nextChoose, scriptLine, templateText, type ScriptStep, pickMatch, unsafeLabel, keepable, macCombo, pickTimeOffsets, placeTask, PLACE_SYSTEM, withoutSessionNumbers, scriptFromTrace, toScreen, weekOf } from '../src/shared/placement'
 import { ehrForClient, learnedFor, learnedPatch, normalizeEhrUrl, type Ehr } from '../src/shared/ehr'
 import { batchCounts, planPieces, planTask, unplacedPieces, withoutCodes, type PlaceBatch } from '../src/shared/placement'
 import type { TreatmentPlan } from '../src/shared/types'
@@ -24,9 +24,22 @@ describe('placing notes', () => {
     expect(text).not.toContain('2026-11-19')
   })
 
-  it('tells Claude the time, so it knows which of today’s appointments have happened', () => {
-    const text = placeTask({ ehrName: 'TestEHR', clientName: 'Sam', noteLabel: 'Progress note', sessionDate: '2026-11-23', today: '2026-11-24', now: '1:42 PM' })
-    expect(text).toContain("Today: Tuesday, November 24, 2026, and it's 1:42 PM now")
+  it('leaves the clock out: the EHR’s calendar may be in another time zone, and today’s session has already happened', () => {
+    const text = placeTask({ ehrName: 'TestEHR', clientName: 'Sam', noteLabel: 'Progress note', sessionDate: '2026-11-23', today: '2026-11-24' })
+    expect(text).toContain('Today: Tuesday, November 24, 2026\n')
+    expect(PLACE_SYSTEM).toContain('an appointment today always counts, whatever time it shows')
+  })
+
+  it('tells Claude to switch to the free-text option whatever the EHR calls it', () => {
+    expect(PLACE_SYSTEM).toContain('"basic note" (as in Alma)')
+    expect(PLACE_SYSTEM).toContain('even when another template (SOAP, DAP, a progress note form) is already selected')
+  })
+
+  it('answers routine telehealth questions and attestations without asking', () => {
+    expect(PLACE_SYSTEM).toContain('check the attestation boxes')
+    const base = { ehrName: 'TestEHR', clientName: 'Sam', noteLabel: 'Progress note', sessionDate: '2026-11-19', today: '2026-11-23' }
+    expect(placeTask({ ...base, details: { cpt: '90837', setting: 'telehealth-home', startOffset: 3, endOffset: -2 } })).toContain('Telehealth type: live audio and video')
+    expect(placeTask({ ...base, details: { cpt: '90837', setting: 'office', startOffset: 3, endOffset: -2 } })).not.toContain('Telehealth type')
   })
 
   it('puts the clinician’s instructions before the saved route', () => {
@@ -106,20 +119,47 @@ describe('placing notes', () => {
     expect(betterRoute({ ...base, placed: false, fixed: true, saved: 'old', savedSeconds: 200 })).toBe(false)
     // The first route is kept.
     expect(betterRoute({ ...base, saved: undefined })).toBe(true)
-    // Faster by at least 10% replaces it; a little faster or slower doesn't.
-    expect(betterRoute({ ...base, saved: 'old', savedSeconds: 70 })).toBe(true)
-    expect(betterRoute({ ...base, saved: 'old', savedSeconds: 64 })).toBe(false)
+    // Fewer requests to Claude replaces it, more doesn't, whatever the time (which varies with how busy Anthropic is).
+    expect(betterRoute({ ...base, turns: 5, saved: 'old', savedTurns: 6, savedSeconds: 50 })).toBe(true)
+    expect(betterRoute({ ...base, turns: 7, saved: 'old', savedTurns: 6, savedSeconds: 200 })).toBe(false)
+    // As many requests: faster by at least 10% replaces it; a little faster or slower doesn't.
+    expect(betterRoute({ ...base, saved: 'old', savedTurns: 6, savedSeconds: 70 })).toBe(true)
+    expect(betterRoute({ ...base, saved: 'old', savedTurns: 6, savedSeconds: 64 })).toBe(false)
     expect(betterRoute({ ...base, saved: 'old', savedSeconds: 50 })).toBe(false)
-    // Time decides over request count once there's a time.
-    expect(betterRoute({ ...base, turns: 2, saved: 'old', savedTurns: 9, savedSeconds: 55 })).toBe(false)
-    // A route saved before timing falls back to request count.
-    expect(betterRoute({ ...base, saved: 'old', savedTurns: 7 })).toBe(true)
-    expect(betterRoute({ ...base, saved: 'old', savedTurns: 6 })).toBe(false)
-    // A fix replaces it even if slower.
+    // A fix replaces a saved script only when the script went wrong this run.
+    expect(betterRoute({ ...base, fixed: true, saved: 'old', savedTurns: 3, savedSeconds: 10, savedScript: true, script: true })).toBe(false)
+    expect(betterRoute({ ...base, fixed: true, saved: 'old', savedTurns: 3, savedSeconds: 10, savedScript: true, script: true, scriptFailed: true })).toBe(true)
+    // A fix to a route without a script replaces it even if slower.
     expect(betterRoute({ ...base, fixed: true, saved: 'old', savedSeconds: 10 })).toBe(true)
     // A route edited by hand (no time or count) is replaced only by a fix.
     expect(betterRoute({ ...base, seconds: 5, saved: 'mine' })).toBe(false)
     expect(betterRoute({ ...base, route: '  ', saved: undefined })).toBe(false)
+  })
+
+  it('builds the route from what Echo recorded, in order, without dead ends', () => {
+    const step = (action: ScriptStep['action'], label = '', text = '', x = 10, y = 10): ScriptStep => ({ action, label, x, y, text, amount: 0, choose: false, what: '' })
+    const trace = [
+      step('click', 'Scheduling', '', 300, 180),
+      step('click', 'Template', '', 100, 400),
+      step('key', '', 'Escape'),
+      step('click', 'My calendar', '', 250, 280),
+      step('click', 'My calendar', '', 250, 281),
+      step('click', 'Riley Example', '', 500, 500),
+      step('type', '', '9:55 AM'),
+      step('click', 'Continue', '', 95, 1160),
+      step('click', '', '', 640, 700)
+    ]
+    // Claude's path out of order and with a wrong step: only its choose words count.
+    const script = scriptFromTrace(trace, trace.length, [{ step: 8, choose: false, what: '' }, { step: 1, choose: false, what: '' }], 'Riley Example')
+    expect(script.map((x) => (x.choose ? 'choose' : x.label || x.text))).toEqual(['Scheduling', 'My calendar', 'choose', 'choose', 'Continue', 'choose'])
+    expect(script.at(-1)!.what).toBe('click into the free-text box where the note goes')
+  })
+
+  it('keeps a session’s own times out of a saved step', () => {
+    expect(withoutSessionNumbers('enter the start time (scheduled start minus 4 minutes)')).toBe('enter the start time')
+    expect(withoutSessionNumbers('type the end time plus 3 minutes into End time')).toBe('type the end time into End time')
+    expect(withoutSessionNumbers('type 10:56 AM into Start time')).toBe('type into Start time')
+    expect(withoutSessionNumbers('click the client’s appointment')).toBe('click the client’s appointment')
   })
 
   it('clicks a label where it is now, but never guesses between two', () => {

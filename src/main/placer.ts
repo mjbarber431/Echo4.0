@@ -13,6 +13,8 @@ import {
   pickMatch,
   scriptLine,
   STEP_WAIT_MS,
+  statsLine,
+  scriptFromTrace,
   unsafeLabel,
   type ScriptStep,
   keepable,
@@ -131,14 +133,14 @@ const CUSTOM_TOOLS: Anthropic.Tool[] = [
   {
     name: 'resume_script',
     description:
-      'After you’ve done a choose step of the saved script: Echo carries on replaying the script by itself from step from (numbered from 1) until the next choose step or the end, then returns a screenshot.',
+      'Hands back to Echo after you’ve done your steps of the saved script (a choose step, or one Echo couldn’t do): Echo carries on replaying the script by itself until the next step that’s yours or the end, then returns a screenshot. from: the step to carry on from (numbered from 1), or 0 for where Echo left off.',
     strict: true,
     input_schema: { type: 'object', properties: { from: { type: 'integer' } }, required: ['from'], additionalProperties: false }
   },
   {
     name: 'done',
     description:
-      'Ends the run. placed: whether the note is now in the free-text box. summary: one or two sentences for the therapist. route: the steps that worked in this EHR, in the form the instructions give, with no client names, dates, weekdays, service codes or details. fixed: true only if the saved route was wrong or incomplete, or you found a quicker way, and this route corrects it. path: the recorded steps (by number) that made up the working route, in order, each marked choose if it depends on this client or session, with what saying what to do (no client details) for those.',
+      'Ends the run. placed: whether the note is now in the free-text box. summary: one or two sentences for the therapist. route: the steps that worked in this EHR, in the form the instructions give, with no client names, dates, weekdays, service codes or details. fixed: true only if the saved route was wrong or incomplete, or you found a quicker way, and this route corrects it. path: the recorded steps (by number) that made up the working route, in order, each marked choose if it depends on this client or session, with what saying what to do (no client details) for those. unchanged: true when the saved script or route worked as it is; then route is "" and path is [], and Echo keeps what it has.',
     strict: true,
     input_schema: {
       type: 'object',
@@ -147,12 +149,13 @@ const CUSTOM_TOOLS: Anthropic.Tool[] = [
         summary: { type: 'string' },
         route: { type: 'string' },
         fixed: { type: 'boolean' },
+        unchanged: { type: 'boolean' },
         path: {
           type: 'array',
           items: { type: 'object', properties: { step: { type: 'integer' }, choose: { type: 'boolean' }, what: { type: 'string' } }, required: ['step', 'choose', 'what'], additionalProperties: false }
         }
       },
-      required: ['placed', 'summary', 'route', 'fixed', 'path'],
+      required: ['placed', 'summary', 'route', 'fixed', 'unchanged', 'path'],
       additionalProperties: false
     }
   }
@@ -205,13 +208,24 @@ const PRICES: Record<string, [number, number]> = { 'claude-opus-5-5': [4, 20], '
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/** A request to Claude taking longer than this says so in the status, instead of showing the last action as if stuck. */
+const SLOW_ANSWER_MS = 15_000
+/** A request that sends nothing for this long is cancelled and sent again, up to ANSWER_RETRIES times. */
+const ANSWER_STALL_MS = 45_000
+const ANSWER_RETRIES = 2
+/** How long to wait for a page to stop changing before handing it to Claude. */
+const SETTLE_MS = 3000
+
 class Stopped extends Error {}
 
 let current: Run | null = null
 /** The batch under way, if any: Stop ends it as well as the run. */
 let batch: { stopped: boolean } | null = null
-/** A batch has left notes open in the EHR's tabs, waiting to be signed: from now on every run opens its own tab, so none is navigated away from. */
-let tabsHeld = false
+/**
+ * The EHRs where a batch has left a note open in a tab, waiting to be signed: from now on a run in one of these opens
+ * its own tab, so none is navigated away from. Other EHRs' tabs are still reused.
+ */
+const tabsHeld = new Set<string>()
 
 export function placing(): boolean {
   return !!current || !!batch
@@ -253,6 +267,21 @@ class Run {
   private filled: string[] = []
   private checkedCoverage = false
   private listedTrace = false
+  /**
+   * Where the saved script is waiting on Claude: once Claude has taken need actions (a choose step, or one Echo
+   * couldn't do), Echo looks for step to's button on screen and carries on replaying by itself when it's there.
+   */
+  private handoff: { to: number; need: number; actions: number; auto: boolean } | null = null
+  /** Buttons Claude has clicked since Echo last handed over (label and where, in screenshot pixels), so replay doesn't click them again. */
+  private clickedByClaude: { label: string; x: number; y: number }[] = []
+  /** For the run's stats: steps Echo replayed, actions Claude took, requests to Claude. */
+  private replayed = 0
+  /** Whether any step of the saved script failed to replay this run. */
+  private scriptFailed = false
+  private claudeActions = 0
+  private requests = 0
+  /** How much of the trace there was when the note was pasted: the route, if Claude doesn't say which steps it was. */
+  private traceAtPaste = 0
 
   constructor(
     private ctx: RunContext,
@@ -372,6 +401,22 @@ class Run {
     const s = await capture(this.window, SCREENSHOT_MAX_EDGE)
     this.shot = s
     return { type: 'image', source: { type: 'base64', media_type: 'image/png', data: s.png } }
+  }
+
+  /**
+   * A screenshot once the page has stopped changing (up to a few seconds): for handing over to Claude after Echo's
+   * replay, so Claude doesn't spend a request looking at a page that's still loading.
+   */
+  private async settledScreenshot(): Promise<Anthropic.ImageBlockParam> {
+    const until = Date.now() + SETTLE_MS
+    let last = await this.screenshot()
+    while (Date.now() < until) {
+      await sleep(350)
+      const next = await this.screenshot()
+      if (next.source.type === 'base64' && last.source.type === 'base64' && next.source.data === last.source.data) return next
+      last = next
+    }
+    return last
   }
 
   /** Pauses if the clinician has moved the pointer since Echo last put it somewhere. */
@@ -497,9 +542,21 @@ class Run {
     this.trace.push({ label: '', x: 0, y: 0, text: '', amount: 0, choose: false, what: '', ...step })
   }
 
-  /** The text under a click, read before clicking (after, the page may have changed). Empty on an icon, or if reading fails. */
+  /**
+   * The text under a click, read before clicking (after, the page may have changed). Empty on an icon, if reading fails,
+   * or when the same text is on screen more than once close by (a "Write note" on every row): which one depends on the
+   * client, so the step is Claude's next time, not one Echo replays.
+   */
   private async labelFor(p: { x: number; y: number }): Promise<string> {
-    return (await labelAt(this.window, p).catch(() => null)) ?? ''
+    const label = (await labelAt(this.window, p).catch(() => null)) ?? ''
+    if (!label) return ''
+    const found = await findText(this.window, label).catch(() => [])
+    const exact = found.filter((f) => f.exact)
+    const centres = (exact.length ? exact : found).map((f) => ({ x: f.box.x + f.box.width / 2, y: f.box.y + f.box.height / 2 }))
+    // Copies near each other (rows of a list) can't be told apart by where they were last time; far apart (two
+    // dropdowns on a form), they can.
+    const near = centres.filter((c) => Math.hypot(c.x - p.x, c.y - p.y) < 150)
+    return near.length > 1 ? '' : label
   }
 
   /**
@@ -508,6 +565,10 @@ class Run {
    */
   private async replay(script: ScriptStep[], from: number): Promise<{ next: number; problem?: string }> {
     const stop = nextChoose(script, from)
+    // The last button Echo clicked, and whether a step has been skipped since: in the run the script came from, a
+    // repeated click after a skipped step was a retry (a pop-up got in the way), and clicking it again would undo it.
+    let lastClicked = ''
+    let skippedSince = false
     for (let i = from; i < stop; i++) {
       this.check()
       await this.noticeMouse()
@@ -516,10 +577,32 @@ class Run {
       try {
         if (step.action === 'click' || step.action === 'double_click') {
           if (unsafeLabel(step.label)) return { next: i, problem: `“${step.label}” could sign, save, send or delete, so Echo won’t click it` }
+          // Claude just clicked this same button itself, or Echo did before a skipped step: clicking it again would undo it.
+          if (
+            (skippedSince && sameLabel(lastClicked, step.label)) ||
+            this.clickedByClaude.some((c) => sameLabel(c.label, step.label) && Math.hypot(c.x - step.x, c.y - step.y) < 40)
+          ) {
+            this.log(`Skipped “${step.label}”: already done`)
+            skippedSince = false
+            continue
+          }
           const hint = this.shot ? toScreen([step.x, step.y], this.shot) : null
-          const target = await this.locate(step.label, hint)
-          if ('error' in target) return { next: i, problem: `“${step.label}” is ${target.error}` }
+          // Some steps aren't needed every time (a pop-up that didn't show, a menu already open): if the next step's
+          // button is there instead, skip this one rather than waiting for it.
+          const after = i + 1 < stop && clickable(script[i + 1]) ? script[i + 1] : null
+          const target = await this.locate(step.label, hint, STEP_WAIT_MS, after)
+          if ('skip' in target) {
+            this.log(`Skipped “${step.label}”: not needed this time`)
+            skippedSince = true
+            continue
+          }
+          if ('error' in target) {
+            this.scriptFailed = true
+            return { next: i, problem: `“${step.label}” is ${target.error}` }
+          }
           this.log(`Replayed: clicked “${step.label}”`)
+          lastClicked = step.label
+          skippedSince = false
           await pointer.click(this.window, target, 'left', step.action === 'double_click' ? 2 : 1)
           this.lastPointer = target
           this.record({ action: step.action, label: step.label, ...this.toShot(target) })
@@ -547,12 +630,62 @@ class Run {
         } else {
           return { next: i, problem: 'Echo can’t replay that step' }
         }
+        this.replayed++
       } catch (err) {
         if (err instanceof Stopped || this.stopped) throw new Stopped()
         return { next: i, problem: ((err as Error).message || 'that step failed').replace(/\.$/, '') }
       }
     }
     return { next: stop }
+  }
+
+  /** After a replay stops: the steps from at are Claude's (a choose block, or a step Echo couldn't do), then Echo's again. */
+  private handOff(script: ScriptStep[], at: number) {
+    this.clickedByClaude = []
+    if (at >= script.length) {
+      this.handoff = null
+      return
+    }
+    let end = at + 1
+    const choose = script[at].choose
+    if (choose) while (end < script.length && script[end].choose) end++
+    // Echo carries on as soon as Claude has done its steps and the next one's button is there: the clinician checks
+    // the note before signing, so speed wins over waiting for Claude to look first.
+    this.handoff = end < script.length ? { to: end, need: end - at, actions: 0, auto: true } : null
+  }
+
+  /** Claude took an action. If it did the script's next step itself, the handoff moves past it. */
+  private claudeActed(script: ScriptStep[]) {
+    this.claudeActions++
+    const last = this.trace.at(-1)
+    if (last && (last.action === 'click' || last.action === 'double_click') && last.label) this.clickedByClaude.push({ label: last.label, x: last.x, y: last.y })
+    const h = this.handoff
+    if (!h) return
+    h.actions++
+    const next = script[h.to]
+    if (h.actions > h.need && last && clickable(next) && last.action === next.action && sameLabel(last.label, next.label)) {
+      if (script[h.to + 1]?.choose) this.handOff(script, h.to + 1)
+      else this.handoff = h.to + 1 < script.length ? { to: h.to + 1, need: 0, actions: 0, auto: h.auto } : null
+    }
+  }
+
+  /**
+   * After Claude's turn: if it has done the steps that were its own and the script's next button is on screen,
+   * Echo replays from there without waiting for Claude to call resume_script. Returns what to tell Claude, or null.
+   */
+  private async pickUpScript(handedBack = false): Promise<Anthropic.ContentBlockParam[] | null> {
+    const script = this.learned.script ?? []
+    const h = this.handoff
+    if (!h || (!handedBack && (!h.auto || h.actions < h.need))) return null
+    const step = script[h.to]
+    if (!clickable(step) || unsafeLabel(step.label)) return null
+    const hint = this.shot && (step.x || step.y) ? toScreen([step.x, step.y], this.shot) : null
+    if ('error' in (await this.locate(step.label, hint, 1500))) return null
+    this.log(`Echo picked the saved script back up at step ${h.to + 1}`)
+    const r = await this.replay(script, h.to)
+    const report = this.replayReport(script, h.to, r)
+    this.handOff(script, r.next)
+    return [{ type: 'text', text: `Echo saw step ${h.to + 1} of the saved script on screen and carried on by itself. ${report}` }, await this.settledScreenshot()]
   }
 
   /** What comes after the recorded steps. */
@@ -565,7 +698,8 @@ class Run {
   /** What Claude is told after Echo replays part of the script. */
   private replayReport(script: ScriptStep[], from: number, r: { next: number; problem?: string }): string {
     const did = r.next > from ? `Echo replayed steps ${from + 1}–${r.next} by itself. ` : ''
-    if (r.problem) return `${did}Step ${r.next + 1} (${scriptLine(script[r.next], r.next).replace(/^\d+\. /, '')}) didn’t work: ${r.problem}. Carry on yourself from what's on screen.`
+    if (r.problem)
+      return `${did}Step ${r.next + 1} (${scriptLine(script[r.next], r.next).replace(/^\d+\. /, '')}) didn’t work: ${r.problem}. Do that step yourself from what's on screen (or skip it if it isn't needed this time), then stop: Echo carries on with the script by itself.`
     if (r.next >= script.length) return `${did}That's the end of the saved script. Check it's the right client and session, put the cursor in the free-text box if it isn't there, and call paste_note.`
     // This choose step and any right after it are Claude's; then Echo can carry on.
     let end = r.next
@@ -576,9 +710,9 @@ class Run {
       .join('; ')
     const then =
       end < script.length
-        ? ` Then call resume_script with from ${end + 1}.`
+        ? ` Do only that, then stop: Echo carries on with step ${end + 1} by itself once its button is on screen.`
         : ' That’s the last step of the script: then check it’s the right client and session, put the cursor in the free-text box, and call paste_note.'
-    return `${did}${end - r.next > 1 ? 'These steps are yours' : 'This step is yours'}: ${yours}.${then}`
+    return `${did}${end - r.next > 1 ? 'These steps are yours' : 'This step is yours'}: ${yours} (with this session's own details).${then}`
   }
 
   /**
@@ -606,11 +740,12 @@ class Run {
           if (unsafeLabel(label)) return finish(`“${label}” could sign, save, send or delete, so Echo won’t click it`)
           const hint = this.shot && (step.x || step.y) ? toScreen([step.x, step.y], this.shot) : null
           const target = await this.locate(label, hint)
-          if ('error' in target) return finish(`“${label}” is ${target.error}`)
+          if ('error' in target || 'skip' in target) return finish(`“${label}” is ${'error' in target ? target.error : 'not on screen'}`)
           this.log(`Clicked “${label}”`)
           await pointer.click(this.window, target, 'left', step.action === 'double_click' ? 2 : 1)
           this.lastPointer = target
           this.record({ action: step.action, label, ...this.toShot(target) })
+          this.claudeActed(this.learned.script ?? [])
           await sleep(350)
         } else if (step.action === 'type') {
           this.log(describeAction('type', { text: step.text }))
@@ -637,14 +772,18 @@ class Run {
   }
 
   /** Where a label is on screen, waiting for it to load. */
-  private async locate(label: string, hint: { x: number; y: number } | null): Promise<{ x: number; y: number } | { error: string }> {
-    const until = Date.now() + STEP_WAIT_MS
+  /** Where a label is on screen, waiting for it to load. With next: stops waiting as soon as that step's button is there instead. */
+  private async locate(label: string, hint: { x: number; y: number } | null, waitMs = STEP_WAIT_MS, next?: ScriptStep | null): Promise<{ x: number; y: number } | { error: string } | { skip: true }> {
+    const until = Date.now() + waitMs
+    const nextHint = next && this.shot && (next.x || next.y) ? toScreen([next.x, next.y], this.shot) : null
     let last: { x: number; y: number } | { error: string } = { error: 'not on screen' }
     for (;;) {
       this.check()
       last = pickMatch(await findText(this.window, label), hint)
       // Found it, or found it in more than one place (waiting won't help that).
-      if (!('error' in last) || last.error !== 'not on screen' || Date.now() > until) return last
+      if (!('error' in last) || last.error !== 'not on screen') return last
+      if (next && !('error' in pickMatch(await findText(this.window, next.label), nextHint))) return { skip: true }
+      if (Date.now() > until) return last
       await sleep(400)
     }
   }
@@ -718,7 +857,6 @@ class Run {
             noteLabel: `${NOTE_TYPE_LABEL[note.type]}${note.session.cpt ? ` (${note.session.cpt})` : ''}`,
             sessionDate: note.session.date,
             today: localToday(),
-            now: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
             details: { cpt: note.session.cpt, setting: note.session.setting, ...pickTimeOffsets() },
             instructions: this.learned.instructions,
             route: this.learned.route
@@ -743,42 +881,35 @@ class Run {
       if (script.length) {
         this.log(`Replaying the ${script.length} recorded steps in ${this.ehr.name}`)
         const r = await this.replay(script, 0)
+        this.handOff(script, r.next)
         intro = `\n\nThe saved script, as Echo recorded it (steps marked choose are yours):\n${script.map(scriptLine).join('\n')}\n\n${this.replayReport(script, 0, r)}`
         await this.pauseIfAsked((g) => (intro += g ? `\nThe therapist paused Echo and says: ${g}` : '\nThe therapist paused Echo, and may have done a step themselves.'))
       } else {
         this.log(this.task === 'signin' ? `Checking you’re signed in to ${this.ehr.name}` : this.learned.route ? `Following the saved route in ${this.ehr.name}` : `Finding the way in ${this.ehr.name} for the first time`)
       }
-      const first = await this.screenshot()
+      const first = script.length ? await this.settledScreenshot() : await this.screenshot()
       const unattended = this.ctx.unattended ? UNATTENDED_NOTE : ''
       const messages: Anthropic.MessageParam[] = [{ role: 'user', content: [{ type: 'text', text: task + unattended + intro }, first] }]
 
       const api = anthropic(this.ctx.apiKey)
       const maxTurns = this.task === 'signin' ? MAX_SIGNIN_TURNS : MAX_PLACE_TURNS
+      let nudged = false
       for (let turn = 0; turn < maxTurns; turn++) {
         this.check()
         // Anything that came up over Echo (another app, Chrome's other windows) goes back behind it.
         if (this.chrome) this.ctx.keepEchoBeside?.(this.chrome)
-        let response: Anthropic.Message
-        try {
-          const stream = api.messages.stream(
-            {
-              model: this.model,
-              max_tokens: 32000,
-              // The conversation only grows, so each request reads the one before it from the cache.
-              cache_control: { type: 'ephemeral' },
-              system: this.task === 'note' ? PLACE_SYSTEM : this.task === 'plan' ? PLAN_SYSTEM : SIGNIN_SYSTEM,
-              tools: TOOLS[this.task],
-              output_config: { effort: 'medium' },
-              messages
-            },
-            { signal: this.abort.signal }
-          )
-          response = await stream.finalMessage()
-        } catch (err) {
-          if (this.stopped) throw new Stopped()
-          throw friendly(err)
-        }
+        const response = await this.ask(api, {
+          model: this.model,
+          max_tokens: 32000,
+          // The conversation only grows, so each request reads the one before it from the cache.
+          cache_control: { type: 'ephemeral' },
+          system: this.task === 'note' ? PLACE_SYSTEM : this.task === 'plan' ? PLAN_SYSTEM : SIGNIN_SYSTEM,
+          tools: TOOLS[this.task],
+          output_config: { effort: 'medium' },
+          messages
+        })
         this.addCost(response.usage)
+        this.requests++
         if (response.stop_reason === 'refusal') throw new Error(`Claude declined to continue. Chart ${this.what} by hand.`)
         messages.push({ role: 'assistant', content: response.content as Anthropic.ContentBlockParam[] })
 
@@ -786,7 +917,25 @@ class Run {
         const calls = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
         if (!calls.length) {
           if (response.stop_reason === 'max_tokens') throw new Error('Claude ran out of room to answer. Try again.')
-          throw new Error('Claude stopped without finishing.')
+          // Claude sometimes hands back to Echo by just stopping: carry on with the script if its next button is there,
+          // and otherwise tell Claude to carry on itself, once.
+          const picked = this.handoff ? await this.pickUpScript(true) : null
+          if (picked) {
+            messages.push({ role: 'user', content: picked })
+            continue
+          }
+          if (nudged) throw new Error('Claude stopped without finishing.')
+          nudged = true
+          const next = this.handoff ? (this.learned.script ?? [])[this.handoff.to] : undefined
+          this.handoff = null
+          messages.push({
+            role: 'user',
+            content: [
+              { type: 'text', text: `${next ? `Echo couldn’t find the script’s next step (${scriptLine(next, 0).replace(/^\d+\. /, '')}) on screen, so it’s over to you. ` : ''}Carry on with your tools from the screen below, or call done or ask_clinician.` },
+              await this.screenshot()
+            ]
+          })
+          continue
         }
 
         const results: Anthropic.ContentBlockParam[] = []
@@ -816,17 +965,23 @@ class Run {
             if (isComputer) {
               this.log(describeAction(call.name, input))
               results.push(result(await this.act(call.name, input)))
+              if (!['screenshot', 'zoom', 'cursor_position', 'wait', 'mouse_move'].includes(call.name)) this.claudeActed(this.learned.script ?? [])
             } else if (call.name === 'run_steps') {
               const steps = (Array.isArray(input.steps) ? input.steps : []) as Step[]
               results.push(result(steps.length ? await this.runSteps(steps) : 'No steps given.'))
             } else if (call.name === 'resume_script') {
               const script = this.learned.script ?? []
-              const from = Math.max(1, Math.floor(Number(input.from) || 1)) - 1
+              const asked = Math.floor(Number(input.from) || 0)
+              // 0: where Echo left off, never back to the start (that would leave the page Claude is on).
+              const from = asked > 0 ? asked - 1 : (this.handoff?.to ?? script.length)
               if (!script.length || from >= script.length) {
-                results.push(result(script.length ? `The script has ${script.length} steps.` : 'There’s no saved script this time: carry on yourself.', true))
+                results.push(
+                  result(script.length ? `There are no more saved steps for Echo to replay: carry on yourself. ${this.endOfScript}` : 'There’s no saved script this time: carry on yourself.', true)
+                )
               } else {
                 const r = await this.replay(script, from)
-                results.push(result([{ type: 'text', text: this.replayReport(script, from, r) }, await this.screenshot()]))
+                this.handOff(script, r.next)
+                results.push(result([{ type: 'text', text: this.replayReport(script, from, r) }, await this.settledScreenshot()]))
               }
             } else if (call.name === 'fill_field' && this.task === 'plan') {
               const text = String(input.text ?? '')
@@ -840,8 +995,15 @@ class Run {
             } else if (call.name === 'paste_note' && this.task === 'note') {
               this.log('Pasted the note')
               await this.paste()
+              this.traceAtPaste = this.trace.length
+              this.handoff = null
               const steps = this.trace.map(scriptLine).join('\n') || '(none)'
-              results.push(result(`Pasted. Take a screenshot to check the note is in the box, then call done.\n\nThe steps Echo recorded this run, for done's path (number them as here):\n${steps}`))
+              results.push(
+                result([
+                  { type: 'text', text: `Pasted. Here's the EHR now: check the note is in the box, then call done.\n\nThe steps Echo recorded this run, for done's path (number them as here):\n${steps}` },
+                  await this.screenshot()
+                ])
+              )
             } else if (call.name === 'ask_clinician' && this.ctx.unattended) {
               // Nobody to answer in a batch: leave this note where it is for the clinician and move on.
               const question = String(input.question ?? '').trim()
@@ -878,12 +1040,25 @@ class Run {
               )
             } else if (call.name === 'done') {
               finished = { placed: !!input.placed, summary: String(input.summary ?? '').trim() }
-              const route = keepable(String(input.route ?? ''), client!.name)
-              const path = (Array.isArray(input.path) ? input.path : []) as { step: number; choose: boolean; what: string }[]
-              const script = buildScript(this.trace, path, client!.name)
               const turns = turn + 1
               const seconds = this.activeSeconds()
               const saved = this.learned
+              if (input.unchanged && !input.fixed && saved.route) {
+                // The saved route worked as it is: keep it, and its best time if this run beat it.
+                const best = finished.placed && (saved.routeSeconds === undefined || seconds < saved.routeSeconds)
+                this.log(finished.placed ? `Kept the saved route (${seconds} s${saved.routeSeconds !== undefined ? `; its best ${best ? 'was' : 'is'} ${saved.routeSeconds} s` : ''})` : 'Kept the saved route')
+                if (best) this.saveLearned({ routeTurns: turns, routeSeconds: seconds })
+                results.push(result('OK'))
+                continue
+              }
+              const route = keepable(String(input.route ?? ''), client!.name)
+              const path = (Array.isArray(input.path) ? input.path : []) as { step: number; choose: boolean; what: string }[]
+              // A note's route comes from what Echo recorded up to the paste, in order; Claude's path only says which
+              // steps are its own. (A plan has no single paste to end at, so it keeps Claude's path.)
+              const script =
+                this.task === 'note' && finished.placed && this.traceAtPaste
+                  ? scriptFromTrace(this.trace, this.traceAtPaste, path, client!.name)
+                  : buildScript(this.trace, path, client!.name)
               const better = betterRoute({
                 placed: finished.placed,
                 route,
@@ -894,7 +1069,8 @@ class Run {
                 savedTurns: saved.routeTurns,
                 savedSeconds: saved.routeSeconds,
                 script: script.length > 0,
-                savedScript: !!saved.script?.length
+                savedScript: !!saved.script?.length,
+                scriptFailed: this.scriptFailed
               })
               if (better) {
                 const previousRoute = saved.route || undefined
@@ -961,6 +1137,12 @@ class Run {
           return
         }
 
+        // Claude did its step: if the saved script's next button is on screen, Echo carries on from there itself.
+        if (!halted && !this.pauseRequested && this.handoff) {
+          const picked = await this.pickUpScript()
+          if (picked) results.push(...picked)
+        }
+
         // Paused: wait for the clinician, then carry on from what's on screen now.
         if (this.pauseRequested) {
           const reason = this.pauseRequested
@@ -992,10 +1174,54 @@ class Run {
       if (err instanceof Stopped || this.stopped) this.set('stopped', `Stopped.${this.costNote()}`)
       else this.set('failed', `${screenMessage((err as Error).message)}${this.costNote()}`)
     } finally {
+      if (this.task !== 'signin') {
+        const stats = { seconds: this.activeSeconds(), requests: this.requests, replayed: this.replayed, claudeActions: this.claudeActions }
+        this.status = { ...this.status, stats }
+        this.log(statsLine(stats))
+      }
       globalShortcut.unregister('Escape')
       // Give the paste time to finish before the clipboard goes back to what it was.
       setTimeout(() => this.restoreClipboard(), 1500)
       stopPointer()
+    }
+  }
+
+  /**
+   * One request to Claude. A request can hang for minutes (the SDK waits up to ten, retrying quietly when Anthropic
+   * is busy) while the screen still shows the last action, so the run looks stuck: after a while the status says
+   * Echo is waiting for Claude, and a request that stops sending anything is cancelled and sent again.
+   */
+  private async ask(api: Anthropic, params: Anthropic.MessageStreamParams): Promise<Anthropic.Message> {
+    for (let attempt = 0; ; attempt++) {
+      const request = new AbortController()
+      const stop = () => request.abort()
+      this.abort.signal.addEventListener('abort', stop)
+      let stalled = false
+      let idle: NodeJS.Timeout | undefined
+      // Every streamed event (thinking included) shows the answer is still coming.
+      const alive = () => {
+        clearTimeout(idle)
+        idle = setTimeout(() => {
+          stalled = true
+          request.abort()
+        }, ANSWER_STALL_MS)
+      }
+      const slow = setTimeout(() => this.log('Waiting for Claude to answer…'), SLOW_ANSWER_MS)
+      try {
+        const stream = api.messages.stream(params, { signal: request.signal })
+        stream.on('streamEvent', alive)
+        alive()
+        return await stream.finalMessage()
+      } catch (err) {
+        if (this.stopped) throw new Stopped()
+        if (!stalled) throw friendly(err)
+        if (attempt >= ANSWER_RETRIES) throw new Error('Claude didn’t answer in time. Anthropic may be busy: try again in a few minutes.')
+        this.log('Claude was slow to answer, so Echo asked again')
+      } finally {
+        clearTimeout(idle)
+        clearTimeout(slow)
+        this.abort.signal.removeEventListener('abort', stop)
+      }
     }
   }
 
@@ -1040,7 +1266,7 @@ function readyToPlace(ctx: PlaceContext): Ehr {
 export async function placeNote(ctx: PlaceContext): Promise<void> {
   if (current || batch) throw new Error('The Navigator is already working in an EHR.')
   const ehr = readyToPlace(ctx)
-  const run = new Run({ ...ctx, newTab: ctx.newTab || tabsHeld }, { ...ehr })
+  const run = new Run({ ...ctx, newTab: ctx.newTab || tabsHeld.has(ehr.id) }, { ...ehr })
   current = run
   void run.run().finally(() => {
     if (current === run) current = null
@@ -1141,10 +1367,13 @@ export async function placeNotes(noteIds: string[], contextFor: (noteId: string)
         if (opened.size) await sleep(1000)
         if (me.stopped) break
         let run: Run
+        let ehrId = ''
         try {
           const ctx = contextFor(state.items[i].noteId)
           const ehr = readyToPlace(ctx)
-          const newTab = tabsHeld || opened.has(ehr.id)
+          ehrId = ehr.id
+          // A new tab only where this EHR's open tab holds a note: the first note in each EHR reuses the tab its sign-in check used.
+          const newTab = tabsHeld.has(ehr.id) || opened.has(ehr.id)
           opened.add(ehr.id)
           run = new Run(
             {
@@ -1166,7 +1395,7 @@ export async function placeNotes(noteIds: string[], contextFor: (noteId: string)
         await run.run()
         if (current === run) current = null
         update(i, { state: run.result.state, message: run.result.message })
-        if (run.result.placedAt) tabsHeld = true
+        if (run.result.placedAt) tabsHeld.add(ehrId)
       }
     } finally {
       powerSaveBlocker.stop(awake)
@@ -1184,4 +1413,18 @@ export const placeControls = {
     if (batch) batch.stopped = true
     current?.stop()
   }
+}
+
+/** A replayable click: one with a label Echo can find on screen. */
+function clickable(step: ScriptStep | undefined): step is ScriptStep {
+  return !!step && !step.choose && (step.action === 'click' || step.action === 'double_click') && !!step.label.trim()
+}
+
+/** Whether two labels read from the screen are the same button: text recognition picks up arrows and part words. */
+function sameLabel(a: string, b: string): boolean {
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
+  const x = norm(a)
+  const y = norm(b)
+  if (!x || !y) return false
+  return x === y || (Math.min(x.length, y.length) >= 3 && (x.startsWith(y) || y.startsWith(x)))
 }

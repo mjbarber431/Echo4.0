@@ -105,19 +105,34 @@ func checkTarget(_ point: CGPoint, window: CGWindowID) throws {
 }
 
 /**
- * Keys go to whichever app is in front, so before typing make sure it's the EHR's (Chrome), bringing it forward
- * if the clinician was last in Echo. Throws rather than type into anything else.
+ * Keys go to whichever app is in front, and a click on an app that isn't in front only brings it forward, so before
+ * typing or clicking make sure the EHR's app (Chrome) is in front, bringing it forward if the clinician was last in
+ * Echo. Throws rather than type into anything else.
  */
 func ensureFront(_ window: CGWindowID) throws {
     guard let target = windowInfo(window) else { throw fail("The EHR’s window isn’t on screen any more.") }
-    if NSWorkspace.shared.frontmostApplication?.processIdentifier == target.pid { return }
+    if frontPid() == target.pid { return }
     guard let app = NSRunningApplication(processIdentifier: target.pid) else { throw fail("Chrome isn’t running.") }
-    app.activate()
-    for _ in 0..<20 {
+    // macOS can take a moment to hand the front to another app when the request comes from a helper like this one.
+    app.activate(options: [.activateIgnoringOtherApps])
+    for _ in 0..<60 {
         usleep(50_000)
-        if NSWorkspace.shared.frontmostApplication?.processIdentifier == target.pid { usleep(150_000); return }
+        // Once it's in front, a moment more for its window to take clicks and keys: a click sooner only brings it forward.
+        if frontPid() == target.pid { usleep(300_000); return }
     }
-    throw fail("Couldn’t bring the EHR to the front to type into it.")
+    throw fail("Couldn’t bring the EHR’s window to the front.")
+}
+
+/**
+ * The app in front now. Asked of the accessibility system each time: NSWorkspace's frontmostApplication only updates
+ * when this helper handles notifications, which it never does while it waits for commands, so it goes stale.
+ */
+func frontPid() -> pid_t? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(AXUIElementCreateSystemWide(), kAXFocusedApplicationAttribute as CFString, &value) == .success,
+          let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return NSWorkspace.shared.frontmostApplication?.processIdentifier }
+    var pid: pid_t = 0
+    return AXUIElementGetPid(value as! AXUIElement, &pid) == .success ? pid : nil
 }
 
 // MARK: - Capture
@@ -458,7 +473,10 @@ func handle(_ args: [String: Any]) throws -> [String: Any] {
         try checkTarget(p, window: try window(args))
         move(to: p)
     case "click":
+        // A click on a window of an app that isn't in front only brings the app forward (the page never sees it), so
+        // Chrome comes to the front first, as it does for keys.
         let p = try point(args)
+        try ensureFront(try window(args))
         try checkTarget(p, window: try window(args))
         click(at: p, button: args["button"] as? String ?? "left", count: args["count"] as? Int ?? 1, flags: try flags(args))
     case "button":
@@ -466,10 +484,12 @@ func handle(_ args: [String: Any]) throws -> [String: Any] {
         let p = mouseLocation()
         try checkTarget(p, window: try window(args))
         let down = args["down"] as? Bool ?? true
+        if down { try ensureFront(try window(args)) }
         post(CGEvent(mouseEventSource: source, mouseType: down ? .leftMouseDown : .leftMouseUp, mouseCursorPosition: p, mouseButton: .left))
     case "drag":
         let a = try point(args, "from"), b = try point(args, "to")
         let id = try window(args)
+        try ensureFront(id)
         try checkTarget(a, window: id)
         try checkTarget(b, window: id)
         drag(from: a, to: b, flags: try flags(args))

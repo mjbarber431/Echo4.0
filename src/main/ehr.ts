@@ -157,9 +157,30 @@ function chromeInstalled(): boolean {
 let chromeBusy: Promise<unknown> = Promise.resolve()
 
 function runChrome(config: ChromeConfig): Promise<{ window?: number; bounds?: Rect }> {
-  const next = chromeBusy.then(() => runChromeNow(config))
+  const next = chromeBusy.then(async () => {
+    await unstickChrome()
+    return runChromeNow(config)
+  })
   chromeBusy = next.catch(() => {})
   return next
+}
+
+/** Runs a short AppleScript, resolving with whether it worked in time. */
+function quick(lines: string[], timeout: number): Promise<boolean> {
+  return new Promise((resolve) => execFile('osascript', lines.flatMap((l) => ['-e', l]), { timeout }, (err) => resolve(!err)))
+}
+
+/**
+ * An open dropdown menu in Chrome (a <select> left open, as an EHR's template picker can be) holds up every script sent
+ * to it until the menu closes. If Chrome doesn't answer straight away, Escape closes the menu.
+ */
+async function unstickChrome(): Promise<void> {
+  // Asked only if Chrome is running: telling it anything would open it.
+  const answers = await quick(['if application "Google Chrome" is running then', 'with timeout of 2 seconds', 'tell application "Google Chrome" to count windows', 'end timeout', 'end if'], 4000)
+  if (answers) return
+  // System Events still answers while Chrome is stuck: bring Chrome forward that way, then Escape goes to its menu.
+  await quick(['tell application "System Events"', 'set frontmost of process "Google Chrome" to true', 'delay 0.2', 'if frontmost of process "Google Chrome" then key code 53', 'end tell'], 3000)
+  await new Promise((r) => setTimeout(r, 300))
 }
 
 function runChromeNow(config: ChromeConfig): Promise<{ window?: number; bounds?: Rect }> {
@@ -175,9 +196,9 @@ function runChromeNow(config: ChromeConfig): Promise<{ window?: number; bounds?:
       const text = `${stderr} ${err.message}`
       if (/-1743|not authori[sz]ed|not allowed to send/i.test(text)) {
         reject(new Error('Echo isn’t allowed to control Chrome. Turn on Google Chrome under Echo in System Settings › Privacy & Security › Automation, then try again.'))
-      } else if (/timed out|ETIMEDOUT|SIGTERM/i.test(text)) {
+      } else if (err.killed || /timed out|ETIMEDOUT|SIGTERM/i.test(text)) {
         reject(new Error('Chrome didn’t respond in time. If it’s showing a dialog, close it and try again.'))
-      } else reject(new Error(`Chrome couldn’t open the EHR: ${stderr.trim().split('\n').pop() || err.message}`))
+      } else reject(new Error(`Chrome couldn’t open the EHR: ${stderr.trim().split('\n').pop() || 'it didn’t say why'}`))
     })
   })
 }

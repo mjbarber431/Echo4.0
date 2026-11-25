@@ -77,14 +77,17 @@ export function betterRoute(r: {
   /** Whether this run recorded a script, and whether the saved route has one. A recorded script beats none. */
   script?: boolean
   savedScript?: boolean
+  /** Whether the saved script went wrong this run (a step Echo couldn't replay). Only then does Claude's fix count. */
+  scriptFailed?: boolean
 }): boolean {
   if (!r.placed || !r.route.trim()) return false
   if (!r.saved?.trim()) return true
   if (r.script && !r.savedScript) return true
-  if (r.fixed) return true
+  if (r.fixed && (r.scriptFailed || !r.savedScript)) return true
+  // Fewer requests to Claude is what makes a run quick (each takes seconds); time breaks a tie, as it varies with how busy Anthropic is.
+  if (r.savedTurns !== undefined && r.turns !== r.savedTurns) return r.turns < r.savedTurns
   if (r.savedSeconds !== undefined) return r.seconds < r.savedSeconds * (1 - FASTER_BY)
-  // No timing or count for the saved route (one written by hand): only a fix replaces it.
-  return r.savedTurns !== undefined && r.turns < r.savedTurns
+  return false
 }
 
 /** What the clinician sees in Charting while a note is being placed. */
@@ -106,6 +109,24 @@ export interface PlaceStatus {
   placedAt?: string
   /** Settings › EHRs after the run saved a route or the clinician's instructions. */
   ehrs?: Ehr[]
+  /** How the run went, once it's over: for seeing whether the saved script is doing its job. */
+  stats?: PlaceStats
+}
+
+/** How long a run took and who did the work: Echo replaying the saved script, or Claude one request at a time. */
+export interface PlaceStats {
+  /** Seconds from the EHR being on screen to the end, leaving out time waiting on the clinician. */
+  seconds: number
+  /** Requests to Claude. Each one takes a few seconds, so this is most of a run's time. */
+  requests: number
+  /** Steps Echo replayed from the saved script by itself, and actions Claude took. */
+  replayed: number
+  claudeActions: number
+}
+
+/** The run's speed, in words for the activity log. */
+export function statsLine(s: PlaceStats): string {
+  return `Took ${s.seconds} s: ${s.requests} request${s.requests === 1 ? '' : 's'} to Claude, ${s.replayed} step${s.replayed === 1 ? '' : 's'} replayed by Echo, ${s.claudeActions} action${s.claudeActions === 1 ? '' : 's'} by Claude`
 }
 
 /** One note in a batch: waiting its turn, then how its run went. */
@@ -277,6 +298,19 @@ export function withoutCodes(text: string): string {
   return text.replace(/ ?\b(?:\d{5}|[GH]\d{4})\b(?! ?[),])/g, '')
 }
 
+/**
+ * A choose step is replayed for other sessions, so its words can't carry this session's times or offsets ("start minus 4
+ * minutes", "10:56 AM"): the next session has its own, and a stale number reads as a conflict.
+ */
+export function withoutSessionNumbers(text: string): string {
+  return text
+    .replace(/\s*\([^()]*\b(?:plus|minus|\d{1,2}:\d{2})\b[^()]*\)/gi, '')
+    .replace(/\s*\b(?:plus|minus)\s+\d+\s*(?:minutes?|mins?)\b/gi, '')
+    .replace(/\s*\b\d{1,2}:\d{2}\s*(?:AM|PM)?/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 /** Adds one piece of the clinician's guidance to an EHR's standing instructions, skipping exact repeats. */
 export function addInstruction(existing: string | undefined, line: string): string {
   const lines = (existing ?? '')
@@ -363,7 +397,7 @@ export function buildScript(trace: ScriptStep[], path: { step: number; choose: b
   for (const p of path) {
     const t = trace[p.step - 1]
     if (!t) continue
-    const what = withoutCodes(redactName(p.what ?? '', clientName))
+    const what = withoutSessionNumbers(withoutCodes(redactName(p.what ?? '', clientName)))
       .trim()
       .slice(0, 200)
     const text = t.action === 'type' ? templateText(t.text, clientName) : t.text
@@ -380,6 +414,41 @@ export function buildScript(trace: ScriptStep[], path: { step: number; choose: b
     )
   }
   return out.slice(0, MAX_SCRIPT_STEPS)
+}
+
+/**
+ * The route from everything Echo recorded up to the paste, in the order it happened: Claude's numbering of its path
+ * is often off, which puts steps out of order or drops them. Dead ends are left out by rule (a click undone with
+ * Escape, the same click twice), and steps that depend on the client or session are Claude's by the same rules as
+ * buildScript. Claude's numbering is too unreliable to use even for that, so its path is ignored here.
+ */
+export function scriptFromTrace(trace: ScriptStep[], upto: number, hints: { step: number; choose: boolean; what: string }[], clientName: string): ScriptStep[] {
+  const kept: number[] = []
+  for (let i = 0; i < Math.min(upto, trace.length); i++) {
+    const t = trace[i]
+    const prev = kept.length ? trace[kept[kept.length - 1]] : undefined
+    const isClick = (x?: ScriptStep) => !!x && (x.action === 'click' || x.action === 'double_click')
+    if (t.action === 'key' && /^(escape|esc)$/i.test(t.text.trim()) && isClick(prev)) {
+      kept.pop()
+      continue
+    }
+    if (isClick(t) && isClick(prev) && t.label && t.label === prev!.label && Math.hypot(t.x - prev!.x, t.y - prev!.y) < 20) continue
+    kept.push(i)
+  }
+  const last = kept.length ? kept[kept.length - 1] : -1
+  const path = kept.map((i, k) => {
+    // The click just before the paste puts the cursor in the note box: always Claude's, as the box moves with the note.
+    if (i === last && (trace[i].action === 'click' || trace[i].action === 'double_click'))
+      return { step: i + 1, choose: true, what: 'click into the free-text box where the note goes' }
+    // Which steps are Claude's comes from the rules in buildScript (names, dates, numbers, clicks without text), not from
+    // Claude's step numbers. Its words are generic, placed by the button before.
+    const before = k > 0 ? trace[kept[k - 1]] : undefined
+    const after = before?.label ? ` (after “${before.label}”)` : ''
+    const what = trace[i].action === 'type' ? `type this session's own value${after}` : `click the one for this client or session${after}`
+    return { step: i + 1, choose: false, what }
+  })
+  void hints
+  return buildScript(trace, path, clientName)
 }
 
 /** One step as Claude reads it, numbered from 1. */
@@ -415,15 +484,17 @@ How to work:
 - You see only the EHR's Chrome window. Coordinates are in the pixel space of the latest screenshot.
 - This is macOS: use cmd (not ctrl) for shortcuts. Prefer clicking what's on screen; use type only to search or filter (for example, the client's name in a search box).
 - Find the client by name. Match loosely: the name in the EHR may be shorter, longer or formatted differently (a nickname, an initial, last name first). The name Echo gives you is unique among the therapist's clients, so a clear match is enough.
-- Find the right session: the client's most recent appointment between the week's Monday and Sunday given below that has already happened (not after today). An appointment earlier today counts once its time has passed: that's the usual case, since therapists often chart the same day. The date Echo has for the note is usually a few days late, so don't expect it to match exactly. Never use an appointment from another week.
+- Find the right session: the client's most recent appointment between the week's Monday and Sunday given below, on any day up to and including today. The therapist has already held the session (Echo has the finished note), so an appointment today always counts, whatever time it shows: the EHR's calendar may be in a different time zone, so never pass over one because its time looks later than now. Charting the same day is the usual case. The date Echo has for the note is usually a few days late, so don't expect it to match exactly. Never use an appointment from another week or a later day.
 - The session is almost always in the week the calendar opens on. The one exception: a calendar whose weeks start on Sunday shows a new week on Sunday, so when today is Sunday the session may be one week back; then go back one week.
-- Every EHR has a way to enter the note as free text in one step (a "free text", "narrative", "blank" or "paste" template or option). Use that rather than a structured form with many fields.
-- When the cursor is in the free-text box, call paste_note. Then take a screenshot to check the note appeared in the box.
+- Every EHR has a way to enter the whole note as free text in one box. It goes by different names: "free text", "narrative", "basic note" (as in Alma), "simple note", "blank", "paste", "unstructured" or similar. Always use it, even when another template (SOAP, DAP, a progress note form) is already selected or listed first: open the template or note-type menu and switch to it. A form with many separate fields is the wrong choice. If you can't find a free-text option, call ask_clinician rather than pasting into a structured form.
+- While a dropdown list is open, a click anywhere else only closes the list and does nothing else: pick an option or press Escape first.
+- When the cursor is in the free-text box, call paste_note. Echo sends back a screenshot: check the note appeared in the box, then call done.
 - Save requests: every request to you takes the therapist several seconds. When you know where the next few things are, do them in one turn instead of one per screenshot:
   - On one screen (for example several fields of a form), send the actions together without screenshots in between.
   - Across screens, use run_steps for a stretch of steps you know from the saved route. Each click names its button's exact visible text; Echo finds that text on screen before clicking (waiting for it to load) and sends one screenshot at the end, or stops and shows you the screen at the first step it can't find. Stop a stretch before any step where you need to choose (the client, the appointment).
-- Echo records every action you take. When there's a saved script, Echo replays its steps by itself before you start and between the steps marked "choose", which are yours. Do the choose step (and anything else needed for it), then call resume_script with the number of the next step, and Echo carries on. Don't redo steps Echo has done. If Echo says a step didn't work, carry on yourself from the screen.
+- Echo records every action you take. When there's a saved script, Echo replays its steps by itself before you start and between the steps marked "choose", which are yours. Do the choose step (and anything else needed for it), then stop: Echo carries on with the saved steps by itself as soon as the next one's button is on screen. You can also hand back by calling resume_script with from 0, in the same turn as your last action. Don't do the next saved steps yourself: Echo replays them much faster than you can. Don't redo steps Echo has done. If Echo says a step didn't work, do that step yourself (or skip it if it isn't needed this time) and stop: Echo picks the script back up after it by itself.
 - Some EHRs also ask for a few session details on the note itself: the service code, where the client was, and start and end times. If the note form has fields for these, fill them in from the session details below, before or after pasting, whichever the form needs. Set times on the note only; never move the appointment. Leave out anything the form doesn't ask for.
+- Session-detail steps often have routine questions and attestations: the telehealth session type, a box confirming the client's location or identity, telehealth consent, the session happened as scheduled. Answer them the normal way without asking: Echo only charts ordinary sessions, and the therapist doesn't use Echo when a session was unusual. Pick live audio and video (often called "audiovisual" or "video") for a telehealth session type, and check the attestation boxes. The one exception is a box or button that signs, locks or submits the note itself: never that.
 
 Never:
 - Sign, lock, finalize, submit, publish, send, or save the note, or click anything that might (Sign, Sign & Lock, Finalize, Submit, Save, Save & Close, Complete). Leave the pasted note open for the therapist to review and sign.
@@ -434,6 +505,8 @@ Never:
 If you're unsure (two possible clients, no appointment that week, no free-text option you can find, an unexpected dialog), call ask_clinician with a short, specific question instead of guessing.
 
 When you're done, call done. Its path is the steps Echo recorded this run (they're listed for you after the paste) that made up the working route, in order: leave out dead ends, misclicks and anything you had to undo. Mark choose on each step that depends on this client or session (the client's name in a list, the appointment, a date, the session details), with what in a few words and no client details, such as "click the client's appointment in the week view". The route is used for every client and session, so keep it general: no service codes, weekdays, dates or times. Echo will replay the rest itself next time, so the fewer choose steps the faster it is, but never leave one unmarked that depends on the client or date.
+
+If the saved script or route got you there as it is (you did only the steps Echo left you), set unchanged to true and send route "" and path []: Echo keeps what it has, and that's quicker than writing it out again. Otherwise set unchanged to false.
 
 Its route is for next time too, so that the next run can go through as much as possible with run_steps. Write the steps that worked in this EHR as a numbered list, one action each, in this form:
 1. click "Calendar" at (88, 212): left sidebar
@@ -451,8 +524,6 @@ export interface PlaceTaskInput {
   noteLabel: string
   sessionDate: string
   today: string
-  /** The time now on the Mac, such as "1:42 PM": whether today's appointments have happened yet. */
-  now?: string
   instructions?: string
   route?: string
   details?: SessionDetails
@@ -497,6 +568,7 @@ function detailLines(d: SessionDetails): string {
     '\nSession details, for any fields the note form asks for:',
     billed ? `- Service code: CPT ${d.cpt}` : '- Service code: none; this session isn’t billed, so if the form insists on one, ask.',
     `- Location: ${LOCATION[d.setting]}`,
+    d.setting === 'office' ? '' : '- Telehealth type: live audio and video, not audio-only',
     `- Start time: ${shift(d.startOffset, 'start')} (for a 2:00 PM appointment, ${clock(14 * 60 + d.startOffset)})`,
     `- End time: ${shift(d.endOffset, 'end')} (for a 3:00 PM end, ${clock(15 * 60 + d.endOffset)})`,
     min ? `- ${d.cpt} needs at least ${min} minutes from start to end. If the appointment is too short for that, ask the therapist rather than changing the code.` : ''
@@ -519,7 +591,7 @@ export function placeTask(input: PlaceTaskInput): string {
     `Client: ${input.clientName}`,
     `Note: ${input.noteLabel}`,
     `Session week: ${longDate(week.start)} to ${longDate(week.end)}`,
-    `Today: ${longDate(input.today)}${input.now ? `, and it's ${input.now} now` : ''}`,
+    `Today: ${longDate(input.today)}`,
     input.details ? detailLines(input.details) : '',
     input.instructions?.trim() ? `\nThe therapist's standing instructions for ${input.ehrName} (these come first):\n${input.instructions.trim()}` : '',
     input.route?.trim()
