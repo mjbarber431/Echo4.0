@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { addInstruction, betterRoute, buildScript, describeAction, fillTemplate, nextChoose, scriptLine, templateText, type ScriptStep, pickMatch, unsafeLabel, keepable, macCombo, pickTimeOffsets, placeTask, PLACE_SYSTEM, withoutSessionNumbers, scriptFromTrace, toScreen, weekOf } from '../src/shared/placement'
 import { ehrForClient, learnedFor, learnedPatch, normalizeEhrUrl, type Ehr } from '../src/shared/ehr'
-import { batchCounts, planPieces, planTask, unplacedPieces, withoutCodes, type PlaceBatch } from '../src/shared/placement'
+import { batchCounts, planPieces, planTask, unplacedPieces, withoutCodes, PLAN_SYSTEM, type PlaceBatch } from '../src/shared/placement'
 import type { TreatmentPlan } from '../src/shared/types'
 
 describe('placing notes', () => {
@@ -153,6 +153,12 @@ describe('placing notes', () => {
     const script = scriptFromTrace(trace, trace.length, [{ step: 8, choose: false, what: '' }, { step: 1, choose: false, what: '' }], 'Riley Example')
     expect(script.map((x) => (x.choose ? 'choose' : x.label || x.text))).toEqual(['Scheduling', 'My calendar', 'choose', 'choose', 'Continue', 'choose'])
     expect(script.at(-1)!.what).toBe('click into the free-text box where the note goes')
+  })
+
+  it('has plans follow standing instructions without asking, and fill required gaps', () => {
+    expect(PLAN_SYSTEM).toContain('without asking to confirm them')
+    expect(PLAN_SYSTEM).toContain('name it in done\'s summary')
+    expect(PLAN_SYSTEM).not.toContain('paste_note')
   })
 
   it('keeps a session’s own times out of a saved step', () => {

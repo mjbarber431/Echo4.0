@@ -692,7 +692,7 @@ class Run {
   private get endOfScript(): string {
     return this.task === 'note'
       ? 'Check it’s the right client and session, put the cursor in the free-text box if it isn’t there, and call paste_note.'
-      : 'Check it’s the right client and a new, empty plan, then fill in the form.'
+      : 'Check it’s the right client and a new, empty plan, then fill in the form field by field with fill_field.'
   }
 
   /** What Claude is told after Echo replays part of the script. */
@@ -700,7 +700,7 @@ class Run {
     const did = r.next > from ? `Echo replayed steps ${from + 1}–${r.next} by itself. ` : ''
     if (r.problem)
       return `${did}Step ${r.next + 1} (${scriptLine(script[r.next], r.next).replace(/^\d+\. /, '')}) didn’t work: ${r.problem}. Do that step yourself from what's on screen (or skip it if it isn't needed this time), then stop: Echo carries on with the script by itself.`
-    if (r.next >= script.length) return `${did}That's the end of the saved script. Check it's the right client and session, put the cursor in the free-text box if it isn't there, and call paste_note.`
+    if (r.next >= script.length) return `${did}That's the end of the saved script. ${this.endOfScript}`
     // This choose step and any right after it are Claude's; then Echo can carry on.
     let end = r.next
     while (end < script.length && script[end].choose) end++
@@ -711,8 +711,9 @@ class Run {
     const then =
       end < script.length
         ? ` Do only that, then stop: Echo carries on with step ${end + 1} by itself once its button is on screen.`
-        : ' That’s the last step of the script: then check it’s the right client and session, put the cursor in the free-text box, and call paste_note.'
-    return `${did}${end - r.next > 1 ? 'These steps are yours' : 'This step is yours'}: ${yours} (with this session's own details).${then}`
+        : ` That’s the last step of the script: then ${this.endOfScript.charAt(0).toLowerCase()}${this.endOfScript.slice(1)}`
+    const own = this.task === 'note' ? " (with this session's own details)" : ''
+    return `${did}${end - r.next > 1 ? 'These steps are yours' : 'This step is yours'}: ${yours}${own}.${then}`
   }
 
   /**
